@@ -1,30 +1,23 @@
-from aiogram import Router
-from aiogram.filters import Command, CommandObject
-from aiogram.types import Message
+import asyncio
+from datetime import datetime
 
-from database import set_reminder
-
-router = Router()
+from database import get_reminders
 
 
-@router.message(Command("remind"))
-async def remind(message: Message, command: CommandObject):
+async def reminder_loop(bot):
+    while True:
+        now = datetime.now().strftime("%H:%M")
 
-    print("ARGS =", command.args)
+        reminders = await get_reminders()
 
-    if command.args is None:
-        await message.answer("Используй:\n/remind 20:00")
-        return
+        for user_id, remind_time in reminders:
+            if remind_time == now:
+                try:
+                    await bot.send_message(
+                        user_id,
+                        "📚 Время повторить английские слова!\n\nИспользуй /word 🇬🇧"
+                    )
+                except Exception as e:
+                    print(e)
 
-    remind_time = command.args.strip()
-
-    print("TIME =", remind_time)
-
-    await set_reminder(
-        message.from_user.id,
-        remind_time
-    )
-
-    await message.answer(
-        f"✅ Напоминание установлено на {remind_time}"
-    )
+        await asyncio.sleep(60)

@@ -25,8 +25,14 @@ dp.include_router(stats_router)
 dp.include_router(remind_router)
 
 
+from handlers.remind import reminder_loop
+
 async def main():
-    await init_db()      # <-- ОБЯЗАТЕЛЬНО
+    await init_db()
+
+    # запускаем напоминания
+    asyncio.create_task(reminder_loop(bot))
+
     print("📚 DictionaryBot запущен!")
     await dp.start_polling(bot)
 
