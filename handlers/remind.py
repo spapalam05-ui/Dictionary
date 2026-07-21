@@ -6,6 +6,9 @@ from database import set_reminder
 
 router = Router()
 
+@router.message(Command("remind"))
+async def remind(message: Message, command: CommandObject):
+    print("REMIND WORKS")
 
 @router.message(Command("remind"))
 async def remind(message: Message, command: CommandObject):
