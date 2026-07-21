@@ -23,4 +23,6 @@ async def init_db():
             )
         """)
 
+        print("✅ Таблица reminders проверена/создана")
+
         await db.commit()
