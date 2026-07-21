@@ -91,4 +91,27 @@ async def get_stats(user_id: int):
         know = (await cursor.fetchone())[0]
 
     return total, dontknow, maybe, know
+
+async def set_reminder(user_id: int, remind_time: str):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            """
+            INSERT OR REPLACE INTO reminders(user_id, remind_time)
+            VALUES (?, ?)
+            """,
+            (user_id, remind_time)
+        )
+        await db.commit()
+
+
+async def get_reminders():
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            """
+            SELECT user_id, remind_time
+            FROM reminders
+            """
+        )
+
+        return await cursor.fetchall()
         
