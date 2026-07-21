@@ -6,6 +6,7 @@ DB_NAME = "dictionary.db"
 
 async def init_db():
     async with aiosqlite.connect(DB_NAME) as db:
+
         await db.execute("""
             CREATE TABLE IF NOT EXISTS words(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -15,9 +16,15 @@ async def init_db():
                 weight INTEGER DEFAULT 70
             )
         """)
-        await db.commit()
 
-        
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS reminders(
+                user_id INTEGER PRIMARY KEY,
+                remind_time TEXT
+            )
+        """)
+
+        await db.commit()
 
 
 async def add_word(user_id: int, english: str, russian: str):
@@ -51,6 +58,8 @@ async def get_random_word(user_id: int):
     weights = [word[3] for word in words]
 
     return random.choices(words, weights=weights, k=1)[0]
+
+
 async def update_weight(word_id: int, weight: int):
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute(
@@ -63,34 +72,36 @@ async def update_weight(word_id: int, weight: int):
         )
         await db.commit()
 
+
 async def get_stats(user_id: int):
     async with aiosqlite.connect(DB_NAME) as db:
 
         cursor = await db.execute(
-            "SELECT COUNT(*) FROM words WHERE user_id = ?",
+            "SELECT COUNT(*) FROM words WHERE user_id=?",
             (user_id,)
         )
         total = (await cursor.fetchone())[0]
 
         cursor = await db.execute(
-            "SELECT COUNT(*) FROM words WHERE user_id = ? AND weight = 70",
+            "SELECT COUNT(*) FROM words WHERE user_id=? AND weight=70",
             (user_id,)
         )
         dontknow = (await cursor.fetchone())[0]
 
         cursor = await db.execute(
-            "SELECT COUNT(*) FROM words WHERE user_id = ? AND weight = 25",
+            "SELECT COUNT(*) FROM words WHERE user_id=? AND weight=25",
             (user_id,)
         )
         maybe = (await cursor.fetchone())[0]
 
         cursor = await db.execute(
-            "SELECT COUNT(*) FROM words WHERE user_id = ? AND weight = 5",
+            "SELECT COUNT(*) FROM words WHERE user_id=? AND weight=5",
             (user_id,)
         )
         know = (await cursor.fetchone())[0]
 
     return total, dontknow, maybe, know
+
 
 async def set_reminder(user_id: int, remind_time: str):
     async with aiosqlite.connect(DB_NAME) as db:
@@ -114,4 +125,3 @@ async def get_reminders():
         )
 
         return await cursor.fetchall()
-        
