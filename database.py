@@ -55,10 +55,13 @@ async def get_random_word(user_id: int):
     if not words:
         return None
 
+    # Если слов одно — возвращаем его
+    if len(words) == 1:
+        return words[0]
+
     weights = [word[3] for word in words]
 
     return random.choices(words, weights=weights, k=1)[0]
-
 
 async def update_weight(word_id: int, weight: int):
     async with aiosqlite.connect(DB_NAME) as db:
