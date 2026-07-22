@@ -142,3 +142,12 @@ async def next_word(callback: CallbackQuery):
     await callback.message.delete()
     await word(callback.message)
     await callback.answer()
+
+@router.callback_query(F.data == "next_word")
+async def next_word(callback: CallbackQuery):
+    from handlers.word import word
+
+    await callback.message.delete()   # удалить старую карточку
+    await word(callback.message)      # показать новую
+
+    await callback.answer()
