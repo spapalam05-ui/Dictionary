@@ -48,7 +48,7 @@ async def dontknow(callback: CallbackQuery):
 
     word_id, english, russian, weight = word_data
 
-    await update_weight(word_id, 70)
+    await update_weight(word_id, 100)
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -81,7 +81,7 @@ async def maybe(callback: CallbackQuery):
 
     word_id, english, russian, weight = word_data
 
-    await update_weight(word_id, 25)
+    await update_weight(word_id, 30)
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -114,8 +114,8 @@ async def know(callback: CallbackQuery):
 
     word_id, english, russian, weight = word_data
 
-    await update_weight(word_id, 1)
-
+    new_weight = max(1, weight // 2)
+    await update_weight(word_id, new_weight)
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
