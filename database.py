@@ -39,25 +39,33 @@ async def add_word(user_id: int, english: str, russian: str):
         await db.commit()
 
 
-async def get_random_word(user_id: int):
+async def get_random_word(user_id: int, last_word_id=None):
     async with aiosqlite.connect(DB_NAME) as db:
-        cursor = await db.execute(
-            """
-            SELECT id, english, russian, weight
-            FROM words
-            WHERE user_id = ?
-            """,
-            (user_id,)
-        )
+
+        if last_word_id is None:
+            cursor = await db.execute(
+                """
+                SELECT id, english, russian, weight
+                FROM words
+                WHERE user_id = ?
+                """,
+                (user_id,)
+            )
+        else:
+            cursor = await db.execute(
+                """
+                SELECT id, english, russian, weight
+                FROM words
+                WHERE user_id = ?
+                AND id != ?
+                """,
+                (user_id, last_word_id)
+            )
 
         words = await cursor.fetchall()
 
     if not words:
         return None
-
-    # Если слов одно — возвращаем его
-    if len(words) == 1:
-        return words[0]
 
     weights = [word[3] for word in words]
 

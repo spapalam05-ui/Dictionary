@@ -14,7 +14,16 @@ last_words = {}
 @router.message(Command("word"))
 async def word(message: Message):
 
-    result = await get_random_word(message.from_user.id)
+    last = last_words.get(message.from_user.id)
+
+    last_id = None
+    if last:
+        last_id = last[0]
+
+    result = await get_random_word(
+        message.from_user.id,
+        last_id
+    )
 
     if result is None:
         await message.answer(
