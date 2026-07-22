@@ -11,3 +11,15 @@ show_translation_keyboard = InlineKeyboardMarkup(
         ]
     ]
 )
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+keyboard = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text="➡️ Следующее слово",
+                callback_data="next_word"
+            )
+        ]
+    ]
+)
