@@ -11,6 +11,7 @@ from aiogram.types import (
 router = Router()
 
 
+# 📋 Мои слова
 @router.message(F.text == "📋 Мои слова")
 async def my_words(message: Message):
 
@@ -34,11 +35,14 @@ async def my_words(message: Message):
 
     await message.answer(
         "📚 <b>Выбери слово:</b>",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard),
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=keyboard
+        ),
         parse_mode="HTML"
     )
 
 
+# Открыть слово
 @router.callback_query(F.data.startswith("word_"))
 async def open_word(callback: CallbackQuery):
 
@@ -47,6 +51,7 @@ async def open_word(callback: CallbackQuery):
     words = await get_all_words(callback.from_user.id)
 
     for wid, english, russian in words:
+
         if wid == word_id:
 
             keyboard = InlineKeyboardMarkup(
@@ -58,11 +63,11 @@ async def open_word(callback: CallbackQuery):
                         )
                     ],
                     [
-                    InlineKeyboardButton(
-                    text="⬅️ Назад",
-                    callback_data="my_words"
+                        InlineKeyboardButton(
+                            text="⬅️ Назад",
+                            callback_data="my_words"
                         )
-                    ]
+                    ],
                     [
                         InlineKeyboardButton(
                             text="🗑️ Удалить",
@@ -84,6 +89,8 @@ async def open_word(callback: CallbackQuery):
 
     await callback.answer()
 
+
+# Подтверждение удаления
 @router.callback_query(
     F.data.startswith("delete_") &
     ~F.data.startswith("delete_yes_")
@@ -107,6 +114,7 @@ async def delete_confirm(callback: CallbackQuery):
         ]
     )
 
+
     await callback.message.edit_text(
         "🗑️ <b>Удалить это слово?</b>",
         reply_markup=keyboard,
@@ -116,6 +124,7 @@ async def delete_confirm(callback: CallbackQuery):
     await callback.answer()
 
 
+# Удаление слова
 @router.callback_query(F.data.startswith("delete_yes_"))
 async def delete_yes(callback: CallbackQuery):
 
@@ -123,20 +132,31 @@ async def delete_yes(callback: CallbackQuery):
 
     await delete_word(word_id)
 
-    await delete_word(word_id)
-
     await callback.answer("✅ Слово удалено")
 
     await back_to_words(callback)
 
+
+# Возврат к списку слов
 @router.callback_query(F.data == "my_words")
 async def back_to_words(callback: CallbackQuery):
 
     words = await get_all_words(callback.from_user.id)
 
+
+    if not words:
+        await callback.message.edit_text(
+            "📚 У тебя пока нет слов."
+        )
+
+        await callback.answer()
+        return
+
+
     keyboard = []
 
     for word_id, english, russian in words:
+
         keyboard.append(
             [
                 InlineKeyboardButton(
@@ -146,9 +166,12 @@ async def back_to_words(callback: CallbackQuery):
             ]
         )
 
+
     await callback.message.edit_text(
         "📚 <b>Выбери слово:</b>",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard),
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=keyboard
+        ),
         parse_mode="HTML"
     )
 
