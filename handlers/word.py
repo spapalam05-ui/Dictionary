@@ -7,18 +7,19 @@ from keyboards.word_keyboard import show_translation_keyboard
 
 router = Router()
 
-# Активные уроки пользователей
+# Активные уроки
 study_sessions = {}
 
-# Текущее слово
+# Последняя карточка
 last_words = {}
 
 
 @router.message(Command("word"))
 async def word(message: Message):
+
     user_id = message.from_user.id
 
-    # Если урока нет — создаём
+    # Создаём урок только один раз
     if user_id not in study_sessions:
 
         words = await get_words(user_id)
@@ -30,59 +31,44 @@ async def word(message: Message):
             return
 
         study_sessions[user_id] = {
-            "words": words,
-            "index": 0,
+            "main": words,
             "repeat": [],
+            "index": 0,
             "repeat_mode": False
         }
 
     session = study_sessions[user_id]
 
-    # ---------- Первый круг ----------
-    if not session["repeat_mode"]:
+    # Основная колода закончилась
+    if session["index"] >= len(session["main"]):
 
-        if session["index"] >= len(session["words"]):
+        # Есть слова на повторение
+        if not session["repeat_mode"] and session["repeat"]:
 
-            if session["repeat"]:
-                session["words"] = session["repeat"]
-                session["repeat"] = []
-                session["index"] = 0
-                session["repeat_mode"] = True
+            session["main"] = session["repeat"]
+            session["repeat"] = []
+            session["index"] = 0
+            session["repeat_mode"] = True
 
-                await message.answer(
-                    "🔁 Повторяем слова, которые ты не знал."
-                )
-            else:
-                del study_sessions[user_id]
-
-                await message.answer(
-                    "🎉 Поздравляем!\n\nВсе слова выучены!"
-                )
-                return
-
-    # ---------- Второй круг ----------
-    else:
-
-        if session["index"] >= len(session["words"]):
+        else:
 
             del study_sessions[user_id]
 
             await message.answer(
-                "🎉 Отлично!\n\nТеперь ты знаешь все слова!"
+                "🎉 Поздравляю!\n\nТы прошёл все карточки."
             )
             return
 
-    word_data = session["words"][session["index"]]
+    word_id, english, russian = session["main"][session["index"]]
 
-    last_words[user_id] = word_data
-
-    word_id, english, russian = word_data
-
-    total = len(session["words"])
-    current = session["index"] + 1
+    last_words[user_id] = (
+        word_id,
+        english,
+        russian
+    )
 
     await message.answer(
-        f"📖 <b>{current}/{total}</b>\n\n"
+        f"📖 <b>{session['index'] + 1}/{len(session['main'])}</b>\n\n"
         f"🇬🇧 <b>{english}</b>\n\n"
         f"🤔 Попробуй вспомнить перевод.",
         reply_markup=show_translation_keyboard,

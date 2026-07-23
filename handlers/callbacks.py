@@ -1,5 +1,9 @@
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+)
 
 from handlers.word import last_words, study_sessions, word
 
@@ -20,13 +24,20 @@ async def show_translation(callback: CallbackQuery):
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="❌ Не знаю", callback_data="dontknow"),
-                InlineKeyboardButton(text="✅ Знаю", callback_data="know"),
+                InlineKeyboardButton(
+                    text="❌ Не знаю",
+                    callback_data="dontknow"
+                ),
+                InlineKeyboardButton(
+                    text="✅ Знаю",
+                    callback_data="know"
+                ),
             ]
         ]
     )
 
     await callback.message.edit_text(
+        f"📖 <b>Карточка</b>\n\n"
         f"🇬🇧 <b>{english}</b>\n"
         f"🇷🇺 <b>{russian}</b>",
         reply_markup=keyboard,
@@ -43,7 +54,10 @@ async def dontknow(callback: CallbackQuery):
 
     session = study_sessions[user_id]
 
+    # добавляем слово в повторение
     session["repeat"].append(last_words[user_id])
+
+    # переходим к следующему
     session["index"] += 1
 
     keyboard = InlineKeyboardMarkup(
@@ -58,8 +72,10 @@ async def dontknow(callback: CallbackQuery):
     )
 
     await callback.message.edit_text(
-        "❌ Не страшно!\n\nЭто слово попадёт в повторение.",
-        reply_markup=keyboard
+        "❌ <b>Не страшно!</b>\n\n"
+        "Это слово попадёт в повторение.",
+        reply_markup=keyboard,
+        parse_mode="HTML"
     )
 
     await callback.answer()
@@ -70,6 +86,7 @@ async def know(callback: CallbackQuery):
 
     user_id = callback.from_user.id
 
+    # просто идём дальше
     study_sessions[user_id]["index"] += 1
 
     keyboard = InlineKeyboardMarkup(
@@ -84,8 +101,9 @@ async def know(callback: CallbackQuery):
     )
 
     await callback.message.edit_text(
-        "✅ Отлично!",
-        reply_markup=keyboard
+        "✅ <b>Отлично!</b>",
+        reply_markup=keyboard,
+        parse_mode="HTML"
     )
 
     await callback.answer()
