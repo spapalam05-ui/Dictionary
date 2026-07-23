@@ -15,7 +15,6 @@ study_sessions = {}
 
 
 async def show_next_word(message: Message, user_id: int):
-    user_id = message.from_user.id
 
     print("USER:", user_id)
     print("SESSIONS:", study_sessions)
@@ -55,6 +54,7 @@ async def show_next_word(message: Message, user_id: int):
 @router.message(Command("word"))
 async def word(message: Message):
 
+    user_id = message.from_user.id
 
     # Если урок ещё не начат
     if user_id not in study_sessions:
