@@ -6,8 +6,7 @@ menu = ReplyKeyboardMarkup(
             KeyboardButton(text="📖 Карточка"),
             KeyboardButton(text="➕ Добавить"),
         ],
-        [
-            KeyboardButton(text="📊 Статистика"),
+        [   
             KeyboardButton(text="❓ Помощь"),
             KeyboardButton(text="📋 Мои слова")
         ],

@@ -91,7 +91,8 @@ async def get_all_words(user_id: int):
 
         return await cursor.fetchall()
 
-
+    
+        
 async def delete_word(word_id: int):
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute(
