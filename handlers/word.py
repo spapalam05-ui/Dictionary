@@ -14,7 +14,7 @@ last_words = {}
 study_sessions = {}
 
 
-async def show_next_word(message: Message):
+async def show_next_word(message: Message, user_id: int):
     user_id = message.from_user.id
 
     print("USER:", user_id)
@@ -55,7 +55,6 @@ async def show_next_word(message: Message):
 @router.message(Command("word"))
 async def word(message: Message):
 
-    user_id = message.from_user.id
 
     # Если урок ещё не начат
     if user_id not in study_sessions:
@@ -76,7 +75,7 @@ async def word(message: Message):
             "repeat_mode": False
         }
 
-    await show_next_word(message)
+    await show_next_word(message, user_id)
 
 
 @router.message(F.text == "📖 Карточка")

@@ -118,9 +118,11 @@ async def know(callback: CallbackQuery):
 @router.callback_query(F.data == "next_word")
 async def next_word(callback: CallbackQuery):
 
-    print("NEXT WORD")
-    print(study_sessions)
-
     await callback.message.delete()
-    await show_next_word(callback.message)
+
+    await show_next_word(
+        callback.message,
+        callback.from_user.id
+    )
+
     await callback.answer()
