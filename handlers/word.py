@@ -17,29 +17,19 @@ study_sessions = {}
 async def show_next_word(message: Message):
     user_id = message.from_user.id
 
-    session = study_sessions[user_id]
+    print("USER:", user_id)
+    print("SESSIONS:", study_sessions)
 
-    # Основная колода закончилась
-    if session["index"] >= len(session["words"]):
+    session = study_sessions.get(user_id)
 
-        # Если есть слова для повторения
-        if not session["repeat_mode"] and session["repeat"]:
-
-            session["words"] = session["repeat"]
-            session["repeat"] = []
-            session["index"] = 0
-            session["repeat_mode"] = True
-
-        else:
-            del study_sessions[user_id]
-
-            await message.answer(
-                "🎉 Поздравляю!\n\n"
-                "Ты прошёл все карточки!"
-            )
-            return
+    if session is None:
+        print("SESSION NOT FOUND")
+        await message.answer("📚 У тебя пока нет слов.\nДобавь их через /add")
+        return
 
     word_id, english, russian = session["words"][session["index"]]
+    print("INDEX:", session["index"])
+    print("WORDS:", session["words"])
 
     last_words[user_id] = (
         word_id,
