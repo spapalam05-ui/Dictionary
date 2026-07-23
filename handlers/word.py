@@ -16,19 +16,29 @@ study_sessions = {}
 
 async def show_next_word(message: Message, user_id: int):
 
-    print("USER:", user_id)
-    print("SESSIONS:", study_sessions)
-
     session = study_sessions.get(user_id)
 
     if session is None:
-        print("SESSION NOT FOUND")
-        await message.answer("📚 У тебя пока нет слов.\nДобавь их через /add")
+        await message.answer(
+            "📚 У тебя пока нет слов.\nДобавь их через /add"
+        )
         return
 
+    if not session["words"]:
+        await message.answer("📚 Нет доступных слов.")
+        return
+
+    if session["index"] >= len(session["words"]):
+        await message.answer(
+            "🎉 Все слова закончены!\n\n"
+            "Можно начать заново через 📖 Карточка"
+        )
+
+        del study_sessions[user_id]
+        return
+
+
     word_id, english, russian = session["words"][session["index"]]
-    print("INDEX:", session["index"])
-    print("WORDS:", session["words"])
 
     last_words[user_id] = (
         word_id,
@@ -36,10 +46,12 @@ async def show_next_word(message: Message, user_id: int):
         russian
     )
 
+
     title = "📖 Карточка"
 
     if session["repeat_mode"]:
         title = "🔁 Повторение"
+
 
     await message.answer(
         f"{title}\n\n"
