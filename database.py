@@ -91,12 +91,24 @@ async def get_all_words(user_id: int):
 
         return await cursor.fetchall()
 
-    
+
         
 async def delete_word(word_id: int):
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute(
             "DELETE FROM words WHERE id = ?",
             (word_id,)
+        )
+        await db.commit()
+
+async def update_word(word_id: int, english: str, russian: str):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            """
+            UPDATE words
+            SET english = ?, russian = ?
+            WHERE id = ?
+            """,
+            (english, russian, word_id)
         )
         await db.commit()

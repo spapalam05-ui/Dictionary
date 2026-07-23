@@ -126,3 +126,4 @@ async def next_word(callback: CallbackQuery):
     )
 
     await callback.answer()
+

@@ -1,4 +1,4 @@
-from database import get_all_words, delete_word
+from database import get_all_words, delete_word, update_word
 from aiogram import Router, F
 from aiogram.types import (
     Message,
@@ -9,7 +9,8 @@ from aiogram.types import (
 
 
 router = Router()
-
+editing_words = {}
+editing_data = {}
 
 # 📋 Мои слова
 @router.message(F.text == "📋 Мои слова")
@@ -146,20 +147,16 @@ async def back_to_words(callback: CallbackQuery):
 
     words = await get_all_words(callback.from_user.id)
 
-
     if not words:
         await callback.message.edit_text(
             "📚 У тебя пока нет слов."
         )
-
         await callback.answer()
         return
-
 
     keyboard = []
 
     for word_id, english, russian in words:
-
         keyboard.append(
             [
                 InlineKeyboardButton(
@@ -179,3 +176,89 @@ async def back_to_words(callback: CallbackQuery):
     )
 
     await callback.answer()
+
+@router.callback_query(F.data.startswith("edit_"))
+async def edit_word(callback: CallbackQuery):
+
+    word_id = int(callback.data.split("_")[1])
+
+    editing_words[callback.from_user.id] = word_id
+
+    await callback.message.edit_text(
+        "✏️ Отправь новое слово в формате:\n\n"
+        "apple - яблоко"
+    )
+
+    await callback.answer()
+
+
+@router.message()
+async def process_edit(message: Message):
+
+    user_id = message.from_user.id
+
+    if user_id not in editing_words:
+        return
+
+    if "-" not in message.text:
+        await message.answer(
+            "❌ Формат:\n\napple - яблоко"
+        )
+        return
+
+    english, russian = map(str.strip, message.text.split("-", 1))
+
+    editing_data[user_id] = (
+        english,
+        russian
+    )
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="💾 Сохранить",
+                    callback_data="save_words"
+                )
+            ]
+        ]
+    )
+
+    await message.answer(
+        f"🇬🇧 {english}\n"
+        f"🇷🇺 {russian}\n\n"
+        "Нажми «Сохранить».",
+        reply_markup=keyboard
+    )
+    return
+
+@router.callback_query(F.data == "save_words")
+async def save_words(callback: CallbackQuery):
+
+    user_id = callback.from_user.id
+
+    if user_id not in editing_words or user_id not in editing_data:
+        await callback.answer(
+            "❌ Нет данных для сохранения",
+            show_alert=True
+        )
+        return
+
+    word_id = editing_words[user_id]
+    english, russian = editing_data[user_id]
+
+    await update_word(
+        word_id,
+        english,
+        russian
+    )
+
+    from handlers.word import study_sessions
+    study_sessions.pop(user_id, None)
+
+    del editing_words[user_id]
+    del editing_data[user_id]
+
+    await callback.answer("✅ Изменения сохранены!")
+
+    await back_to_words(callback)
