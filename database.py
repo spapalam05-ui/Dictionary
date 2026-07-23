@@ -76,3 +76,26 @@ async def get_reminders():
         )
 
         return await cursor.fetchall()
+    
+async def get_all_words(user_id: int):
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            """
+            SELECT id, english, russian
+            FROM words
+            WHERE user_id = ?
+            ORDER BY english
+            """,
+            (user_id,)
+        )
+
+        return await cursor.fetchall()
+
+
+async def delete_word(word_id: int):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "DELETE FROM words WHERE id = ?",
+            (word_id,)
+        )
+        await db.commit()

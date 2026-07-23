@@ -9,6 +9,7 @@ menu = ReplyKeyboardMarkup(
         [
             KeyboardButton(text="📊 Статистика"),
             KeyboardButton(text="❓ Помощь"),
+            KeyboardButton(text="📋 Мои слова")
         ],
     ],
     resize_keyboard=True
