@@ -93,3 +93,15 @@ async def word(message: Message):
 @router.message(F.text == "📖 Карточка")
 async def word_button(message: Message):
     await word(message)
+
+@router.message(F.text == "🔄 Обновить карточки")
+async def reset_words(message: Message):
+
+    user_id = message.from_user.id
+
+    if user_id in study_sessions:
+        del study_sessions[user_id]
+
+    await message.answer(
+        "✅ Карточки обновлены"
+    )
