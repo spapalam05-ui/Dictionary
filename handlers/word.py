@@ -7,19 +7,19 @@ from keyboards.word_keyboard import show_translation_keyboard
 
 router = Router()
 
-# Последняя карточка
-last_words = {}
+# Активные уроки пользователей
+study_sessions = {}
 
-# Колода пользователя
-user_decks = {}
+# Текущее слово
+last_words = {}
 
 
 @router.message(Command("word"))
 async def word(message: Message):
     user_id = message.from_user.id
 
-    # Если колоды нет — создаем
-    if user_id not in user_decks:
+    # Если урока нет — создаём
+    if user_id not in study_sessions:
 
         words = await get_words(user_id)
 
@@ -29,46 +29,60 @@ async def word(message: Message):
             )
             return
 
-        user_decks[user_id] = {
+        study_sessions[user_id] = {
             "words": words,
             "index": 0,
-            "repeat": []
+            "repeat": [],
+            "repeat_mode": False
         }
 
-    deck = user_decks[user_id]
+    session = study_sessions[user_id]
 
-    # Закончились все слова
-    if deck["index"] >= len(deck["words"]):
+    # ---------- Первый круг ----------
+    if not session["repeat_mode"]:
 
-        # Есть слова на повторение
-        if deck["repeat"]:
+        if session["index"] >= len(session["words"]):
 
-            deck["words"] = deck["repeat"]
-            deck["repeat"] = []
-            deck["index"] = 0
+            if session["repeat"]:
+                session["words"] = session["repeat"]
+                session["repeat"] = []
+                session["index"] = 0
+                session["repeat_mode"] = True
+
+                await message.answer(
+                    "🔁 Повторяем слова, которые ты не знал."
+                )
+            else:
+                del study_sessions[user_id]
+
+                await message.answer(
+                    "🎉 Поздравляем!\n\nВсе слова выучены!"
+                )
+                return
+
+    # ---------- Второй круг ----------
+    else:
+
+        if session["index"] >= len(session["words"]):
+
+            del study_sessions[user_id]
 
             await message.answer(
-                "🔁 Начинаем повторение слов, которые ты не знал!"
+                "🎉 Отлично!\n\nТеперь ты знаешь все слова!"
             )
-
-        else:
-            await message.answer(
-                "🎉 Отлично!\n\nТы прошёл все слова!"
-            )
-
-            del user_decks[user_id]
             return
 
-    word_data = deck["words"][deck["index"]]
-
-    deck["index"] += 1
+    word_data = session["words"][session["index"]]
 
     last_words[user_id] = word_data
 
     word_id, english, russian = word_data
 
+    total = len(session["words"])
+    current = session["index"] + 1
+
     await message.answer(
-        f"📖 <b>Карточка</b>\n\n"
+        f"📖 <b>{current}/{total}</b>\n\n"
         f"🇬🇧 <b>{english}</b>\n\n"
         f"🤔 Попробуй вспомнить перевод.",
         reply_markup=show_translation_keyboard,
