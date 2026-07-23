@@ -5,7 +5,11 @@ from aiogram.types import (
     InlineKeyboardButton,
 )
 
-from handlers.word import last_words, study_sessions, word
+from handlers.word import (
+    last_words,
+    study_sessions,
+    show_next_word,
+)
 
 router = Router()
 
@@ -13,13 +17,13 @@ router = Router()
 @router.callback_query(F.data == "show_translation")
 async def show_translation(callback: CallbackQuery):
 
-    word_data = last_words.get(callback.from_user.id)
+    user_id = callback.from_user.id
 
-    if not word_data:
+    if user_id not in last_words:
         await callback.answer()
         return
 
-    word_id, english, russian = word_data
+    word_id, english, russian = last_words[user_id]
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -31,7 +35,7 @@ async def show_translation(callback: CallbackQuery):
                 InlineKeyboardButton(
                     text="✅ Знаю",
                     callback_data="know"
-                ),
+                )
             ]
         ]
     )
@@ -54,10 +58,10 @@ async def dontknow(callback: CallbackQuery):
 
     session = study_sessions[user_id]
 
-    # добавляем слово в повторение
+    # Добавляем слово в повторение
     session["repeat"].append(last_words[user_id])
 
-    # переходим к следующему
+    # Следующая карточка
     session["index"] += 1
 
     keyboard = InlineKeyboardMarkup(
@@ -86,8 +90,10 @@ async def know(callback: CallbackQuery):
 
     user_id = callback.from_user.id
 
-    # просто идём дальше
-    study_sessions[user_id]["index"] += 1
+    session = study_sessions[user_id]
+
+    # Просто идём дальше
+    session["index"] += 1
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -114,6 +120,6 @@ async def next_word(callback: CallbackQuery):
 
     await callback.message.delete()
 
-    await word(callback.message)
+    await show_next_word(callback.message)
 
     await callback.answer()

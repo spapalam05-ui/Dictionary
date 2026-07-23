@@ -131,6 +131,9 @@ async def delete_yes(callback: CallbackQuery):
     word_id = int(callback.data.split("_")[2])
 
     await delete_word(word_id)
+    from handlers.word import study_sessions
+
+    study_sessions.pop(callback.from_user.id, None)
 
     await callback.answer("✅ Слово удалено")
 
