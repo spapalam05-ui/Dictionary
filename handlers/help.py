@@ -16,7 +16,6 @@ async def help_command(message: Message):
         "📚 Команды:\n\n"
         "/add apple - яблоко\n"
         "/word - случайное слово\n"
-        "/stats - статистика"
     )
 
 

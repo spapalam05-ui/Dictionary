@@ -2,43 +2,70 @@ from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message
 
-from database import get_random_word
+from database import get_words
 from keyboards.word_keyboard import show_translation_keyboard
 
 router = Router()
 
-# Последнее показанное слово
+# Последняя карточка
 last_words = {}
+
+# Колода пользователя
+user_decks = {}
 
 
 @router.message(Command("word"))
 async def word(message: Message):
+    user_id = message.from_user.id
 
-    last = last_words.get(message.from_user.id)
+    # Если колоды нет — создаем
+    if user_id not in user_decks:
 
-    last_id = None
-    if last:
-        last_id = last[0]
+        words = await get_words(user_id)
 
-    result = await get_random_word(
-        message.from_user.id,
-        last_id
-    )
+        if not words:
+            await message.answer(
+                "📚 У тебя пока нет слов.\nДобавь их через /add"
+            )
+            return
 
-    if result is None:
-        await message.answer(
-            "📚 У тебя пока нет слов.\nДобавь их через /add"
-        )
-        return
+        user_decks[user_id] = {
+            "words": words,
+            "index": 0,
+            "repeat": []
+        }
 
-    word_id, english, russian, weight = result
+    deck = user_decks[user_id]
 
-    last_words[message.from_user.id] = (
-        word_id,
-        english,
-        russian,
-        weight
-    )
+    # Закончились все слова
+    if deck["index"] >= len(deck["words"]):
+
+        # Есть слова на повторение
+        if deck["repeat"]:
+
+            deck["words"] = deck["repeat"]
+            deck["repeat"] = []
+            deck["index"] = 0
+
+            await message.answer(
+                "🔁 Начинаем повторение слов, которые ты не знал!"
+            )
+
+        else:
+            await message.answer(
+                "🎉 Отлично!\n\nТы прошёл все слова!"
+            )
+
+            del user_decks[user_id]
+            return
+
+    word_data = deck["words"][deck["index"]]
+
+    deck["index"] += 1
+
+    last_words[user_id] = word_data
+
+    word_id, english, russian = word_data
 
     await message.answer(
         f"📖 <b>Карточка</b>\n\n"
