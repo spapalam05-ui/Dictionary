@@ -20,7 +20,6 @@ dp.include_router(help_router)
 dp.include_router(add_router)
 dp.include_router(word_router)
 dp.include_router(callbacks_router)
-dp.include_router(stats_router)
 dp.include_router(remind_router)
 
 
