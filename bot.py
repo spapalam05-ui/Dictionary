@@ -11,6 +11,7 @@ from handlers.add import router as add_router
 from handlers.word import router as word_router
 from handlers.callbacks import router as callbacks_router 
 from handlers.remind import router as remind_router
+from handlers.my_words import router as my_words_router
 
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher()
@@ -21,6 +22,7 @@ dp.include_router(add_router)
 dp.include_router(word_router)
 dp.include_router(callbacks_router)
 dp.include_router(remind_router)
+dp.include_router(my_words_router)
 
 
 from handlers.remind import reminder_loop
