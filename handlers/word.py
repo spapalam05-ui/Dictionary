@@ -31,10 +31,9 @@ async def show_next_word(message: Message, user_id: int):
         await message.answer("📚 Нет доступных слов.")
         return
 
-    # Если закончились слова
     if session["index"] >= len(session["words"]):
 
-        # основной урок
+        # Закончили основной урок
         if not session["repeat_mode"]:
 
             if session["repeat"]:
@@ -65,17 +64,18 @@ async def show_next_word(message: Message, user_id: int):
             )
             return
 
-            # повторение
-            if session["repeat_mode"]:
+             # Закончили повторение
+        else:
 
                 if session["repeat"]:
                     session["words"] = session["repeat"].copy()
-                    session["repeat"].clear()
                     session["index"] = 0
+                    session["repeat_mode"] = True
 
                     await message.answer(
                         "🔁 Повторяем слова, которые ещё не запомнил."
                     )
+
                     return await show_next_word(message, user_id)
 
                 study_sessions.pop(user_id, None)
@@ -84,6 +84,7 @@ async def show_next_word(message: Message, user_id: int):
                     "🏆 Поздравляем!\n\n"
                     "Ты выучил все слова!"
                 )
+
                 return
 
     word_id, english, russian = session["words"][session["index"]]

@@ -139,26 +139,6 @@ async def next_word(callback: CallbackQuery):
 async def start_repeat(callback: CallbackQuery):
 
     user_id = callback.from_user.id
-    session = study_sessions[user_id]
-
-    session["words"] = session["repeat"]
-    session["repeat"] = []
-    session["index"] = 0
-    session["repeat_mode"] = True
-
-    await callback.message.delete()
-
-    await show_next_word(
-        callback.message,
-        user_id
-    )
-
-    await callback.answer()
-
-@router.callback_query(F.data == "start_repeat")
-async def start_repeat(callback: CallbackQuery):
-
-    user_id = callback.from_user.id
 
     session = study_sessions.get(user_id)
 
@@ -171,7 +151,6 @@ async def start_repeat(callback: CallbackQuery):
         return
 
     session["words"] = session["repeat"].copy()
-    session["repeat"].clear()
     session["index"] = 0
     session["repeat_mode"] = True
 
