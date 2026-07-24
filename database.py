@@ -19,9 +19,29 @@ async def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER,
                 english TEXT,
-                russian TEXT   
+                russian TEXT
             )
         """)
+
+        cursor = await db.execute("PRAGMA table_info(words)")
+        columns = await cursor.fetchall()
+
+        column_names = [column[1] for column in columns]
+
+        print("Колонки таблицы words:", column_names)
+
+        if "position" not in column_names:
+            print("Добавляю колонку position...")
+            await db.execute(
+                "ALTER TABLE words ADD COLUMN position INTEGER"
+            )
+            await db.commit()
+            print("Колонка position добавлена!")
+
+        if "position" not in column_names:
+            await db.execute(
+                "ALTER TABLE words ADD COLUMN position INTEGER"
+            )
 
         await db.execute("""
             CREATE TABLE IF NOT EXISTS reminders(

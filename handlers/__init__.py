@@ -22,6 +22,8 @@ async def init_db():
 
         column_names = [column[1] for column in columns]
 
+        print("Колонки таблицы words:", column_names)
+
         if "position" not in column_names:
             await db.execute(
                 "ALTER TABLE words ADD COLUMN position INTEGER"
