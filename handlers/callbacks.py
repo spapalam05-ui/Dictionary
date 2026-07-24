@@ -154,3 +154,32 @@ async def start_repeat(callback: CallbackQuery):
     )
 
     await callback.answer()
+
+@router.callback_query(F.data == "start_repeat")
+async def start_repeat(callback: CallbackQuery):
+
+    user_id = callback.from_user.id
+
+    session = study_sessions.get(user_id)
+
+    if session is None:
+        await callback.answer()
+        return
+
+    if not session["repeat"]:
+        await callback.answer("Нет слов для повторения.")
+        return
+
+    session["words"] = session["repeat"].copy()
+    session["repeat"].clear()
+    session["index"] = 0
+    session["repeat_mode"] = True
+
+    await callback.message.delete()
+
+    await show_next_word(
+        callback.message,
+        user_id
+    )
+
+    await callback.answer()

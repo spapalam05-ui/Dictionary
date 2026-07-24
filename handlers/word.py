@@ -31,26 +31,31 @@ async def show_next_word(message: Message, user_id: int):
         await message.answer("📚 Нет доступных слов.")
         return
 
-        # Если закончились слова
+    # Если закончились слова
     if session["index"] >= len(session["words"]):
 
-    # основной урок
+        # основной урок
         if not session["repeat_mode"]:
-            ...
-            return
-
-        # повторение
-        if session["repeat_mode"]:
 
             if session["repeat"]:
-                session["words"] = session["repeat"].copy()
-                session["repeat"].clear()
-                session["index"] = 0
+                keyboard = InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [
+                            InlineKeyboardButton(
+                                text="🔁 Повторить забытые слова",
+                                callback_data="start_repeat"
+                            )
+                        ]
+                    ]
+                )
 
                 await message.answer(
-                    "🔁 Повторяем слова, которые ещё не запомнил."
+                    f"🎉 Основной урок завершён!\n\n"
+                    f"Ты забыл слов: <b>{len(session['repeat'])}</b>",
+                    reply_markup=keyboard,
+                    parse_mode="HTML"
                 )
-                return await show_next_word(message, user_id)
+                return
 
             study_sessions.pop(user_id, None)
 
@@ -60,26 +65,26 @@ async def show_next_word(message: Message, user_id: int):
             )
             return
 
-    # Если это уже повторение
-    if session["repeat_mode"]:
+            # повторение
+            if session["repeat_mode"]:
 
-        if session["repeat"]:
-            session["words"] = session["repeat"].copy()
-            session["repeat"].clear()
-            session["index"] = 0
+                if session["repeat"]:
+                    session["words"] = session["repeat"].copy()
+                    session["repeat"].clear()
+                    session["index"] = 0
 
-            await message.answer(
-                "🔁 Повторяем слова, которые ещё не запомнил."
-            )
-            return await show_next_word(message, user_id)
+                    await message.answer(
+                        "🔁 Повторяем слова, которые ещё не запомнил."
+                    )
+                    return await show_next_word(message, user_id)
 
-        study_sessions.pop(user_id, None)
+                study_sessions.pop(user_id, None)
 
-        await message.answer(
-            "🏆 Поздравляем!\n\n"
-            "Ты выучил все слова!"
-        )
-        return
+                await message.answer(
+                    "🏆 Поздравляем!\n\n"
+                    "Ты выучил все слова!"
+                )
+                return
 
     word_id, english, russian = session["words"][session["index"]]
 
