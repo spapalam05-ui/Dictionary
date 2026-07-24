@@ -162,3 +162,53 @@ async def start_repeat(callback: CallbackQuery):
     )
 
     await callback.answer()
+
+from datetime import datetime, timedelta
+from database import set_reminder, delete_reminder
+
+
+@router.callback_query(F.data.startswith("remind_"))
+async def reminder_buttons(callback: CallbackQuery):
+
+    user_id = callback.from_user.id
+
+    if callback.data == "remind_off":
+        await delete_reminder(user_id)
+
+        await callback.message.edit_text(
+            "❌ Напоминание отключено."
+        )
+
+        await callback.answer()
+        return
+
+    delta = None
+
+    if callback.data == "remind_30m":
+        delta = timedelta(minutes=30)
+
+    elif callback.data == "remind_1h":
+        delta = timedelta(hours=1)
+
+    elif callback.data == "remind_3h":
+        delta = timedelta(hours=3)
+
+    elif callback.data == "remind_6h":
+        delta = timedelta(hours=6)
+
+    elif callback.data == "remind_1d":
+        delta = timedelta(days=1)
+
+    remind_datetime = datetime.now() + delta
+
+    await set_reminder(
+        user_id,
+        remind_datetime.isoformat()
+    )
+
+    await callback.message.edit_text(
+        f"✅ Напоминание установлено.\n\n"
+        f"Я напомню тебе через {callback.data.replace('remind_', '')}."
+    )
+
+    await callback.answer()

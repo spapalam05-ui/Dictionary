@@ -26,7 +26,7 @@ async def init_db():
         await db.execute("""
             CREATE TABLE IF NOT EXISTS reminders(
                 user_id INTEGER PRIMARY KEY,
-                remind_time TEXT
+                remind_datetime TEXT
             )
         """)
 
@@ -61,14 +61,14 @@ async def get_words(user_id: int):
 
 
 
-async def set_reminder(user_id: int, remind_time: str):
+async def set_reminder(user_id: int, remind_datetime: str):
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute(
             """
-            INSERT OR REPLACE INTO reminders(user_id, remind_time)
+            INSERT OR REPLACE INTO reminders(user_id, remind_datetime)
             VALUES (?, ?)
             """,
-            (user_id, remind_time)
+            (user_id, remind_datetime)
         )
         await db.commit()
 
@@ -77,7 +77,7 @@ async def get_reminders():
     async with aiosqlite.connect(DB_NAME) as db:
         cursor = await db.execute(
             """
-            SELECT user_id, remind_time
+            SELECT user_id, remind_datetime
             FROM reminders
             """
         )
@@ -117,5 +117,13 @@ async def update_word(word_id: int, english: str, russian: str):
             WHERE id = ?
             """,
             (english, russian, word_id)
+        )
+        await db.commit()
+
+async def delete_reminder(user_id: int):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "DELETE FROM reminders WHERE user_id = ?",
+            (user_id,)
         )
         await db.commit()

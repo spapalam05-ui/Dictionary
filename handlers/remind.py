@@ -2,54 +2,45 @@ import asyncio
 from datetime import datetime
 
 from aiogram import Router
-from aiogram.filters import Command, CommandObject
+from aiogram.filters import Command
 from aiogram.types import Message
 
-from database import set_reminder, get_reminders
+from database import get_reminders
+from keyboards.remind_keyboard import remind_keyboard
 
 router = Router()
 
 
 @router.message(Command("remind"))
-async def remind(message: Message, command: CommandObject):
-    if command.args is None:
-        await message.answer(
-            "Используй:\n/remind 20:00"
-        )
-        return
-
-    remind_time = command.args.strip()
-
-    if len(remind_time) != 5 or ":" not in remind_time:
-        await message.answer(
-            "❌ Неверный формат.\nПример: /remind 20:00"
-        )
-        return
-
-    await set_reminder(
-        message.from_user.id,
-        remind_time
-    )
-
+async def remind(message: Message):
     await message.answer(
-        f"✅ Напоминание установлено на {remind_time}"
+        "⏰ Через сколько напомнить повторить слова?",
+        reply_markup=remind_keyboard
     )
 
 
 async def reminder_loop(bot):
     while True:
-        now = datetime.now().strftime("%H:%M")
+
+        now = datetime.now()
 
         reminders = await get_reminders()
 
-        for user_id, remind_time in reminders:
-            if remind_time == now:
+        for user_id, remind_datetime in reminders:
+
+            remind_datetime = datetime.fromisoformat(remind_datetime)
+
+            if now >= remind_datetime:
                 try:
                     await bot.send_message(
                         user_id,
                         "📚 Время повторить слова!\n\nНажми /word 🇬🇧"
                     )
+
+                    from database import delete_reminder
+                    await delete_reminder(user_id)
+
                 except Exception as e:
                     print(e)
 
-        await asyncio.sleep(60)
+        await asyncio.sleep(30)
