@@ -92,10 +92,16 @@ async def dontknow(callback: CallbackQuery):
 async def know(callback: CallbackQuery):
 
     user_id = callback.from_user.id
-
     session = study_sessions[user_id]
 
-    # Просто идём дальше
+    # Если сейчас режим повторения
+    if session["repeat_mode"]:
+
+        word = session["words"][session["index"]]
+
+        if word in session["repeat"]:
+            session["repeat"].remove(word)
+
     session["index"] += 1
 
     keyboard = InlineKeyboardMarkup(
@@ -116,7 +122,6 @@ async def know(callback: CallbackQuery):
     )
 
     await callback.answer()
-
 
 @router.callback_query(F.data == "next_word")
 async def next_word(callback: CallbackQuery):
