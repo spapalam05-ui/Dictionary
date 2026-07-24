@@ -127,3 +127,54 @@ async def next_word(callback: CallbackQuery):
 
     await callback.answer()
 
+@router.callback_query(F.data == "next_word")
+async def next_word(callback: CallbackQuery):
+
+    user_id = callback.from_user.id
+    session = study_sessions[user_id]
+
+    # Если обычные слова закончились
+    if session["index"] >= len(session["words"]):
+
+        # Есть забытые слова
+        if session["repeat"]:
+
+            keyboard = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="🔁 Повторить забытые слова",
+                            callback_data="start_repeat"
+                        )
+                    ]
+                ]
+            )
+
+            await callback.message.edit_text(
+                "📚 Основной урок закончен!\n\n"
+                "Теперь повторим слова, которые ты не знал.",
+                reply_markup=keyboard
+            )
+
+            await callback.answer()
+            return
+
+        # Всё выучено
+        await callback.message.edit_text(
+            "🎉 Поздравляю!\n\n"
+            "Ты выучил все слова!"
+        )
+
+        study_sessions.pop(user_id, None)
+
+        await callback.answer()
+        return
+
+    await callback.message.delete()
+
+    await show_next_word(
+        callback.message,
+        user_id
+    )
+
+    await callback.answer()
