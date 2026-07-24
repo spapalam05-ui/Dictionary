@@ -1,24 +1,37 @@
-from aiogram import Router, F
+from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
 router = Router()
 
-from aiogram import F
-
-@router.message(F.text == "❓ Помощь")
-async def help_button(message: Message):
-    await help_command(message)
-
 @router.message(Command("help"))
 async def help_command(message: Message):
     await message.answer(
-        "📚 Команды:\n\n"
-        "/add apple - яблоко\n"
-        "/word - случайное слово\n"
+        """
+👋 Привет! Добро пожаловать в DictionaryBot!
+
+📚 Этот бот создан, чтобы помогать запоминать слова с помощью карточек и регулярного повторения.
+
+🧠 Почему это работает?
+Многие замечают, что если просто учить слова целый день, 
+мозг начинает воспринимать это как что-то бесполезное и быстро забывает информацию. 
+Но когда ты регулярно возвращаешься к словам и повторяешь их по карточкам, мозг понимает, что эти знания действительно пригодятся,
+ и запоминает их намного лучше.
+
+🌍 Бот подходит не только для английского языка. Ты можешь изучать любые языки.
+
+✨ Возможности:
+• ➕ Добавление слов
+• 📖 Карточки
+• 📋 Мои слова
+• ⏰ Напоминания
+• 🔁 Повторение забытых слов
+и кстати я хочу развивать этого бота чтобы не только себе помочь но и вам!
+
+💡 Если у тебя есть идеи, нашёл ошибку или хочешь связаться со мной:
+
+📩 Telegram:@Num1233215
+
+Удачи в изучении языков! 🚀
+"""
     )
-
-
-@router.message(F.text == "❓ Помощь")
-async def help_button(message: Message):
-    await help_command(message)

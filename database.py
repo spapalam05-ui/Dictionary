@@ -35,13 +35,31 @@ async def init_db():
 
 async def add_word(user_id: int, english: str, russian: str):
     async with aiosqlite.connect(DB_NAME) as db:
-        await db.execute(
-             """
-            INSERT INTO words(user_id, english, russian)
-             VALUES (?, ?, ?)
+
+        cursor = await db.execute(
+            """
+            SELECT COALESCE(MAX(position), 0)
+            FROM words
+            WHERE user_id = ?
             """,
-            (user_id, english, russian)
-)
+            (user_id,)
+        )
+
+        max_position = (await cursor.fetchone())[0]
+
+        await db.execute(
+            """
+            INSERT INTO words(user_id, english, russian, position)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                user_id,
+                english,
+                russian,
+                max_position + 1
+            )
+        )
+
         await db.commit()
 
 
@@ -52,7 +70,7 @@ async def get_words(user_id: int):
             SELECT id, english, russian
             FROM words
             WHERE user_id = ?
-            ORDER BY id
+            ORDER BY position
             """,
             (user_id,)
         )
@@ -91,7 +109,7 @@ async def get_all_words(user_id: int):
             SELECT id, english, russian
             FROM words
             WHERE user_id = ?
-            ORDER BY english
+            ORDER BY position
             """,
             (user_id,)
         )
@@ -126,4 +144,38 @@ async def delete_reminder(user_id: int):
             "DELETE FROM reminders WHERE user_id = ?",
             (user_id,)
         )
+        await db.commit()
+
+async def shuffle_words(user_id: int):
+    async with aiosqlite.connect(DB_NAME) as db:
+
+        cursor = await db.execute(
+            """
+            SELECT id
+            FROM words
+            WHERE user_id = ?
+            ORDER BY position
+            """,
+            (user_id,)
+        )
+
+        words = await cursor.fetchall()
+
+        if len(words) < 2:
+            return
+
+        ids = [word[0] for word in words]
+
+        random.shuffle(ids)
+
+        for position, word_id in enumerate(ids, start=1):
+            await db.execute(
+                """
+                UPDATE words
+                SET position = ?
+                WHERE id = ?
+                """,
+                (position, word_id)
+            )
+
         await db.commit()

@@ -33,6 +33,14 @@ async def my_words(message: Message):
                 )
             ]
         )
+    keyboard.append(
+    [
+        InlineKeyboardButton(
+            text="🔀 Перемешать слова",
+            callback_data="shuffle_words"
+        )
+    ]
+)
 
     await message.answer(
         "📚 <b>Выбери слово:</b>",
@@ -162,6 +170,15 @@ async def back_to_words(callback: CallbackQuery):
                 InlineKeyboardButton(
                     text=f"🇬🇧 {english}",
                     callback_data=f"word_{word_id}"
+                )
+            ]
+        )
+
+    keyboard.append(
+        [
+            InlineKeyboardButton(
+                text="🔀 Перемешать слова",
+                callback_data="shuffle_words"
                 )
             ]
         )

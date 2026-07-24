@@ -4,6 +4,7 @@ from aiogram.types import (
     InlineKeyboardMarkup,
     InlineKeyboardButton,
 )
+from database import shuffle_words
 
 from handlers.word import (
     last_words,
@@ -212,3 +213,16 @@ async def reminder_buttons(callback: CallbackQuery):
     )
 
     await callback.answer()
+
+@router.callback_query(F.data == "shuffle_words")
+async def shuffle_words_callback(callback: CallbackQuery):
+
+    await shuffle_words(callback.from_user.id)
+
+    from handlers.word import study_sessions
+    study_sessions.pop(callback.from_user.id, None)
+
+    await callback.answer("✅ Слова перемешаны!")
+
+    callback.data = "my_words"
+    await back_to_words(callback)
