@@ -9,6 +9,11 @@ menu = ReplyKeyboardMarkup(
         [   
             KeyboardButton(text="❓ Помощь"),
             KeyboardButton(text="📋 Мои слова")
+            
+        ],
+                [   
+            KeyboardButton(text="⏰ Напоминание"),
+            
         ],
     ],
     resize_keyboard=True

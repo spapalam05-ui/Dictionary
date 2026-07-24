@@ -1,7 +1,7 @@
 import asyncio
 from datetime import datetime
 
-from aiogram import Router
+from aiogram import Router,F
 from aiogram.filters import Command
 from aiogram.types import Message
 
@@ -11,8 +11,16 @@ from keyboards.remind_keyboard import remind_keyboard
 router = Router()
 
 
-@router.message(Command("remind"))
-async def remind(message: Message):
+@router.message(F.text == "⏰ Напоминание")
+async def reminder_menu(message: Message):
+    await message.answer(
+        "Отправь время в формате:\n\n"
+        "/remind 20:00"
+    )
+
+
+@router.message(F.text == "⏰ Напоминание")
+async def reminder_menu(message: Message):
     await message.answer(
         "⏰ Через сколько напомнить повторить слова?",
         reply_markup=remind_keyboard
@@ -44,3 +52,5 @@ async def reminder_loop(bot):
                     print(e)
 
         await asyncio.sleep(30)
+
+    
