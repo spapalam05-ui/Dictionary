@@ -4,6 +4,11 @@ from aiogram.types import Message
 
 from database import get_words
 from keyboards.word_keyboard import show_translation_keyboard
+from aiogram.types import (
+    Message,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+)
 
 router = Router()
 
@@ -28,15 +33,36 @@ async def show_next_word(message: Message, user_id: int):
         await message.answer("📚 Нет доступных слов.")
         return
 
+    # Если закончились слова
     if session["index"] >= len(session["words"]):
-        await message.answer(
-            "🎉 Все слова закончены!\n\n"
-            "Можно начать заново через 📖 Карточка"
-        )
 
-        del study_sessions[user_id]
+        # Есть слова для повторения
+        if not session["repeat_mode"] and session["repeat"]:
+
+            keyboard = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="🔁 Повторить забытые слова",
+                            callback_data="start_repeat"
+                        )
+                    ]
+                ]
+            )
+
+            await message.answer(
+                f"🎉 Основной урок завершён!\n\n"
+                f"Ты забыл слов: <b>{len(session['repeat'])}</b>",
+                reply_markup=keyboard,
+                parse_mode="HTML"
+            )
+            return
+
+        # Повторение тоже закончилось
+        study_sessions.pop(user_id, None)
+
+        await message.answer("🎉 Урок полностью завершён!")
         return
-
 
     word_id, english, russian = session["words"][session["index"]]
 
@@ -46,12 +72,10 @@ async def show_next_word(message: Message, user_id: int):
         russian
     )
 
-
     title = "📖 Карточка"
 
     if session["repeat_mode"]:
         title = "🔁 Повторение"
-
 
     await message.answer(
         f"{title}\n\n"
@@ -61,7 +85,6 @@ async def show_next_word(message: Message, user_id: int):
         reply_markup=show_translation_keyboard,
         parse_mode="HTML"
     )
-
 
 @router.message(Command("word"))
 async def word(message: Message):
