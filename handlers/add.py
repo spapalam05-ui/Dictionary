@@ -1,11 +1,10 @@
-from aiogram import Router
-from aiogram.filters import Command, CommandObject
 from aiogram import Router, F
+from aiogram.filters import Command, CommandObject
 from aiogram.types import Message
-
-from database import add_word
+from database import add_word, get_words_count
 
 router = Router()
+
 
 @router.message(F.text == "➕ Добавить")
 async def add_button(message: Message):
@@ -14,10 +13,18 @@ async def add_button(message: Message):
         "/add apple - яблоко"
     )
 
+
 @router.message(Command("add"))
 async def add(message: Message, command: CommandObject):
-    print("TEXT =", message.text)
-    print("ARGS =", command.args)
+
+    count = await get_words_count(message.from_user.id)
+
+    if count >= 50:
+        await message.answer(
+            "❌ Ты достиг лимита в 50 слов.\n\n"
+            "Удалите ненужные слова, чтобы добавить новые."
+        )
+        return
 
     if command.args is None:
         await message.answer(

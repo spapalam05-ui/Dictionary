@@ -2,6 +2,7 @@ import os
 import aiosqlite
 import random
 
+
 DB_NAME = "dictionary.db"
 
 print("База данных:", os.path.abspath(DB_NAME))
@@ -50,6 +51,7 @@ async def init_db():
             user_id INTEGER PRIMARY KEY
         )
         """)
+
         await db.commit()
 
 
@@ -141,15 +143,17 @@ async def add_user(user_id: int):
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute(
             "INSERT OR IGNORE INTO users(user_id) VALUES (?)",
-            (message.from_user.id,)
+            (user_id,)
         )
         await db.commit()
 
 
 async def get_users_count():
-    cursor = await db.execute("SELECT COUNT(*) FROM users")
-    result = await cursor.fetchone()
-    return result[0]
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM users"
+        )
+        return (await cursor.fetchone())[0]
         
 async def delete_word(word_id: int):
     async with aiosqlite.connect(DB_NAME) as db:
@@ -212,3 +216,11 @@ async def shuffle_words(user_id: int):
             )
 
         await db.commit()
+
+async def get_words_count(user_id: int):
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM words WHERE user_id = ?",
+            (user_id,)
+        )
+        return (await cursor.fetchone())[0]
