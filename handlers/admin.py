@@ -7,8 +7,11 @@ router = Router()
 
 ADMIN_ID = 1203468356
 
+print("ADMIN ROUTER LOADED")
+
 @router.message(Command("id"))
 async def my_id(message: Message):
+    print("ID COMMAND")
     await message.answer(f"Твой ID: {message.from_user.id}")
 
 @router.message(Command("users"))
