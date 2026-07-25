@@ -9,6 +9,7 @@ router = Router()
 
 @router.message(Command("id"))
 async def my_id(message: Message):
+    print("ID COMMAND")
     await message.answer(f"Твой ID: {message.from_user.id}")
 
 
