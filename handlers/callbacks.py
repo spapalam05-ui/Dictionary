@@ -11,6 +11,7 @@ from handlers.word import (
     study_sessions,
     show_next_word,
 )
+from handlers.my_words import back_to_words
 
 router = Router()
 
@@ -224,5 +225,4 @@ async def shuffle_words_callback(callback: CallbackQuery):
 
     await callback.answer("✅ Слова перемешаны!")
 
-    callback.data = "my_words"
     await back_to_words(callback)
