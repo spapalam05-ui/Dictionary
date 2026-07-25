@@ -1,6 +1,6 @@
-from aiogram import Router, F
-from aiogram.types import Message
+from aiogram import Router
 from aiogram.filters import Command
+from aiogram.types import Message
 
 from database import get_users_count
 
@@ -10,11 +10,13 @@ print("ADMIN ROUTER LOADED")
 
 ADMIN_ID = 1203468356
 
-@router.message()
-async def test(message: Message):
-    print("Любое сообщение:", message.text)
 
-@router.message(F.text == "/id")
+@router.message()
+async def debug(message: Message):
+    print("TEXT =", repr(message.text))
+
+
+@router.message(Command("id"))
 async def my_id(message: Message):
     print("ID COMMAND WORKED")
     await message.answer(f"Твой ID: {message.from_user.id}")
