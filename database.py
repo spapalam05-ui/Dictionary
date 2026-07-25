@@ -38,16 +38,17 @@ async def init_db():
             await db.commit()
             print("Колонка position добавлена!")
 
-        if "position" not in column_names:
-            await db.execute(
-                "ALTER TABLE words ADD COLUMN position INTEGER"
-            )
-
         await db.execute("""
             CREATE TABLE IF NOT EXISTS reminders(
                 user_id INTEGER PRIMARY KEY,
                 remind_datetime TEXT
             )
+        """)
+
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS users(
+            user_id INTEGER PRIMARY KEY
+        )
         """)
 
         await db.commit()
@@ -137,6 +138,21 @@ async def get_all_words(user_id: int):
         return await cursor.fetchall()
 
 
+async def add_user(user_id: int):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "INSERT OR IGNORE INTO users(user_id) VALUES (?)",
+            (user_id,)
+        )
+        await db.commit()
+
+
+async def get_users_count():
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM users"
+        )
+        return (await cursor.fetchone())[0]
         
 async def delete_word(word_id: int):
     async with aiosqlite.connect(DB_NAME) as db:
