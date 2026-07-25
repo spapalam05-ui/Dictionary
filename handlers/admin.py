@@ -1,5 +1,4 @@
 from aiogram import Router
-from aiogram.filters import Command
 from aiogram.types import Message
 
 from database import get_users_count
@@ -9,16 +8,18 @@ router = Router()
 ADMIN_ID = 1203468356
 
 
-@router.message(Command("id"))
-async def my_id(message: Message):
-    print("ID COMMAND WORKED")
-    await message.answer(f"Твой ID: {message.from_user.id}")
+@router.message()
+async def admin_commands(message: Message):
+    print("Получено:", repr(message.text))
 
-
-@router.message(Command("users"))
-async def users(message: Message):
-    if message.from_user.id != ADMIN_ID:
+    if message.text == "/id":
+        await message.answer(f"Твой ID: {message.from_user.id}")
         return
 
-    count = await get_users_count()
-    await message.answer(f"👥 Пользователей: {count}")
+    if message.text == "/users":
+        if message.from_user.id != ADMIN_ID:
+            await message.answer("Нет доступа")
+            return
+
+        count = await get_users_count()
+        await message.answer(f"👥 Пользователей: {count}")
