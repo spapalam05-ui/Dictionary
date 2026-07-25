@@ -16,3 +16,7 @@ async def start(message: Message):
         "👋 Добро пожаловать в DictionaryBot!",
         reply_markup=menu
     )
+
+@router.message()
+async def test(message: Message):
+    print(message.from_user.id)
