@@ -7,16 +7,6 @@ from database import add_user
 
 router = Router()
 
-
-@router.message(CommandStart())
-async def start(message: Message):
-    await add_user(message.from_user.id)
-
-    await message.answer(
-        "👋 Добро пожаловать в DictionaryBot!",
-        reply_markup=menu
-    )
-
 @router.message()
 async def test(message: Message):
     print(message.from_user.id)
