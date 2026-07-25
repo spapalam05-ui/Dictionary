@@ -6,14 +6,7 @@ from database import get_users_count
 
 router = Router()
 
-print("ADMIN ROUTER LOADED")
-
 ADMIN_ID = 1203468356
-
-
-@router.message()
-async def debug(message: Message):
-    print("TEXT =", repr(message.text))
 
 
 @router.message(Command("id"))
