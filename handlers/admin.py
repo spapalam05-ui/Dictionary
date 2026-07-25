@@ -10,6 +10,9 @@ print("ADMIN ROUTER LOADED")
 
 ADMIN_ID = 1203468356
 
+@router.message()
+async def test(message: Message):
+    print("Любое сообщение:", message.text)
 
 @router.message(F.text == "/id")
 async def my_id(message: Message):

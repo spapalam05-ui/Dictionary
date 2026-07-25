@@ -209,8 +209,8 @@ async def edit_word(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.message()
-async def process_edit(message: Message):
+#@router.message()
+#async def process_edit(message: Message):
 
     user_id = message.from_user.id
 
