@@ -4,7 +4,6 @@ from aiogram.types import Message
 
 from database import get_users_count
 
-
 router = Router()
 
 ADMIN_ID = 1203468356
@@ -12,8 +11,9 @@ ADMIN_ID = 1203468356
 
 @router.message(Command("users"))
 async def users_count(message: Message):
+    print("/users от", message.from_user.id)
+
     if message.from_user.id != ADMIN_ID:
-        await message.answer("⛔ У тебя нет доступа к этой команде.")
         return
 
     count = await get_users_count()

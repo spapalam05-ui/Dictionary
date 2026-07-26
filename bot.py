@@ -17,6 +17,7 @@ from handlers.admin import router as admin_router
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher()
 
+dp.include_router(admin_router)
 dp.include_router(start_router)
 dp.include_router(help_router)
 dp.include_router(add_router)
@@ -24,7 +25,6 @@ dp.include_router(word_router)
 dp.include_router(callbacks_router)
 dp.include_router(remind_router)
 dp.include_router(my_words_router)
-dp.include_router(admin_router)
 
 
 from handlers.remind import reminder_loop
