@@ -116,30 +116,6 @@ async def show_categories(
         )
 
 
-@router.message(F.text == "📂 Категории")
-async def categories_button(message: Message):
-    premium = await is_premium(message.from_user.id)
-
-    if not premium:
-        await message.answer(
-            "🔒 <b>Категории доступны только в Premium.</b>\n\n"
-            "⭐ Premium — 1990 ₸\n"
-            "• Безлимит слов\n"
-            "• Категории\n"
-            "• Статистика\n"
-            "• Серия обучения",
-            parse_mode="HTML"
-        )
-        return
-
-    await message.answer(
-        "📂 <b>Категории слов</b>\n\n"
-        "Разделяй слова по темам и учи только нужную категорию.",
-        reply_markup=categories_menu_keyboard(),
-        parse_mode="HTML"
-    )
-
-
 @router.callback_query(F.data == "my_categories")
 async def my_categories_callback(callback: CallbackQuery):
     premium = await is_premium(callback.from_user.id)
@@ -153,11 +129,11 @@ async def my_categories_callback(callback: CallbackQuery):
 
     await callback.answer()
 
-    await callback.message.answer(
-        "📂 <b>Категории</b>\n\n"
-        "Выбери действие:",
-        parse_mode="HTML"
+    await show_categories(
+        callback.message,
+        callback.from_user.id
     )
+
 
 @router.callback_query(F.data == "create_category")
 async def create_category_callback(
@@ -194,6 +170,12 @@ async def receive_category_name(
     message: Message,
     state: FSMContext
 ):
+    if not message.text:
+        await message.answer(
+            "❌ Отправь название категории текстом."
+        )
+        return
+
     name = message.text.strip()
 
     if len(name) < 2:
@@ -374,6 +356,12 @@ async def receive_category_word(
     message: Message,
     state: FSMContext
 ):
+    if not message.text:
+        await message.answer(
+            "❌ Отправь слово текстом."
+        )
+        return
+
     text = message.text.strip()
 
     if "-" not in text:
@@ -397,7 +385,14 @@ async def receive_category_word(
         return
 
     data = await state.get_data()
-    category_id = data["category_id"]
+    category_id = data.get("category_id")
+
+    if category_id is None:
+        await state.clear()
+        await message.answer(
+            "❌ Не удалось определить категорию."
+        )
+        return
 
     category = await get_category(
         message.from_user.id,
@@ -496,14 +491,14 @@ async def study_category(callback: CallbackQuery):
         "category_id": category_id
     }
 
+    await callback.answer()
+
     await callback.message.delete()
 
     await show_next_word(
         callback.message,
         user_id
     )
-
-    await callback.answer()
 
 
 @router.callback_query(
@@ -587,4 +582,3 @@ async def delete_category_callback(
         callback.from_user.id,
         edit=True
     )
-
