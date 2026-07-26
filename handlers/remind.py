@@ -19,13 +19,6 @@ async def reminder_menu(message: Message):
     )
 
 
-@router.message(F.text == "⏰ Напоминание")
-async def reminder_menu(message: Message):
-    await message.answer(
-        "⏰ Через сколько напомнить повторить слова?",
-        reply_markup=remind_keyboard
-    )
-
 
 async def reminder_loop(bot):
     while True:

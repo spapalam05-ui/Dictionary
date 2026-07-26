@@ -44,3 +44,6 @@ async def main():
     except Exception:
         import traceback
         traceback.print_exc()
+
+if __name__ == "__main__":
+    asyncio.run(main())
