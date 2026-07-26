@@ -1,232 +1,236 @@
 import os
-import aiosqlite
-import asyncpg
 import random
+import asyncpg
+
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-DB_NAME = "dictionary.db"
+if not DATABASE_URL:
+    raise RuntimeError("Переменная DATABASE_URL не найдена")
 
-print("SQLite:", os.path.abspath(DB_NAME))
-print("PostgreSQL:", "OK" if DATABASE_URL else "НЕ НАЙДЕН")
 
-import random
-
-DB_NAME = "dictionary.db"
+async def get_connection():
+    return await asyncpg.connect(DATABASE_URL)
 
 
 async def init_db():
-    async with aiosqlite.connect(DB_NAME) as db:
+    conn = await get_connection()
 
-        await db.execute("""
+    try:
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS words(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                english TEXT,
-                russian TEXT
+                id BIGSERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                english TEXT NOT NULL,
+                russian TEXT NOT NULL,
+                position INTEGER NOT NULL DEFAULT 0
             )
         """)
 
-        cursor = await db.execute("PRAGMA table_info(words)")
-        columns = await cursor.fetchall()
-
-        column_names = [column[1] for column in columns]
-
-        print("Колонки таблицы words:", column_names)
-
-        if "position" not in column_names:
-            print("Добавляю колонку position...")
-            await db.execute(
-                "ALTER TABLE words ADD COLUMN position INTEGER"
-            )
-            await db.commit()
-            print("Колонка position добавлена!")
-
-        await db.execute("""
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS reminders(
-                user_id INTEGER PRIMARY KEY,
-                remind_datetime TEXT
+                user_id BIGINT PRIMARY KEY,
+                remind_datetime TEXT NOT NULL
             )
         """)
 
-        await db.execute("""
-        CREATE TABLE IF NOT EXISTS users(
-            user_id INTEGER PRIMARY KEY
-        )
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS users(
+                user_id BIGINT PRIMARY KEY
+            )
         """)
 
-        await db.commit()
+        print("✅ Таблицы PostgreSQL созданы/проверены")
+
+    finally:
+        await conn.close()
 
 
 async def add_word(user_id: int, english: str, russian: str):
-    async with aiosqlite.connect(DB_NAME) as db:
+    conn = await get_connection()
 
-        cursor = await db.execute(
-            """
+    try:
+        max_position = await conn.fetchval("""
             SELECT COALESCE(MAX(position), 0)
             FROM words
-            WHERE user_id = ?
-            """,
-            (user_id,)
-        )
+            WHERE user_id = $1
+        """, user_id)
 
-        max_position = (await cursor.fetchone())[0]
-
-        await db.execute(
-            """
+        await conn.execute("""
             INSERT INTO words(user_id, english, russian, position)
-            VALUES (?, ?, ?, ?)
-            """,
-            (
-                user_id,
-                english,
-                russian,
-                max_position + 1
-            )
-        )
+            VALUES ($1, $2, $3, $4)
+        """, user_id, english, russian, max_position + 1)
 
-        await db.commit()
+    finally:
+        await conn.close()
 
 
 async def get_words(user_id: int):
-    async with aiosqlite.connect(DB_NAME) as db:
-        cursor = await db.execute(
-            """
+    conn = await get_connection()
+
+    try:
+        rows = await conn.fetch("""
             SELECT id, english, russian
             FROM words
-            WHERE user_id = ?
-            ORDER BY position
-            """,
-            (user_id,)
-        )
+            WHERE user_id = $1
+            ORDER BY position, id
+        """, user_id)
 
-        return await cursor.fetchall()
+        return [
+            (row["id"], row["english"], row["russian"])
+            for row in rows
+        ]
 
+    finally:
+        await conn.close()
+
+
+async def get_all_words(user_id: int):
+    return await get_words(user_id)
 
 
 async def set_reminder(user_id: int, remind_datetime: str):
-    async with aiosqlite.connect(DB_NAME) as db:
-        await db.execute(
-            """
-            INSERT OR REPLACE INTO reminders(user_id, remind_datetime)
-            VALUES (?, ?)
-            """,
-            (user_id, remind_datetime)
-        )
-        await db.commit()
+    conn = await get_connection()
+
+    try:
+        await conn.execute("""
+            INSERT INTO reminders(user_id, remind_datetime)
+            VALUES ($1, $2)
+            ON CONFLICT (user_id)
+            DO UPDATE SET remind_datetime = EXCLUDED.remind_datetime
+        """, user_id, remind_datetime)
+
+    finally:
+        await conn.close()
 
 
 async def get_reminders():
-    async with aiosqlite.connect(DB_NAME) as db:
-        cursor = await db.execute(
-            """
+    conn = await get_connection()
+
+    try:
+        rows = await conn.fetch("""
             SELECT user_id, remind_datetime
             FROM reminders
-            """
+        """)
+
+        return [
+            (row["user_id"], row["remind_datetime"])
+            for row in rows
+        ]
+
+    finally:
+        await conn.close()
+
+
+async def delete_reminder(user_id: int):
+    conn = await get_connection()
+
+    try:
+        await conn.execute(
+            "DELETE FROM reminders WHERE user_id = $1",
+            user_id
         )
 
-        return await cursor.fetchall()
-    
-async def get_all_words(user_id: int):
-    async with aiosqlite.connect(DB_NAME) as db:
-        cursor = await db.execute(
-            """
-            SELECT id, english, russian
-            FROM words
-            WHERE user_id = ?
-            ORDER BY position
-            """,
-            (user_id,)
-        )
-
-        return await cursor.fetchall()
+    finally:
+        await conn.close()
 
 
 async def add_user(user_id: int):
-    print("Добавляю пользователя:", user_id)
+    conn = await get_connection()
 
-    async with aiosqlite.connect(DB_NAME) as db:
-        await db.execute(
-            "INSERT OR IGNORE INTO users(user_id) VALUES (?)",
-            (user_id,)
-        )
-        await db.commit()
+    try:
+        await conn.execute("""
+            INSERT INTO users(user_id)
+            VALUES ($1)
+            ON CONFLICT (user_id) DO NOTHING
+        """, user_id)
 
-        cursor = await db.execute("SELECT COUNT(*) FROM users")
-        count = (await cursor.fetchone())[0]
-        print("Пользователей в БД:", count)
+    finally:
+        await conn.close()
+
 
 async def get_users_count():
-    async with aiosqlite.connect(DB_NAME) as db:
-        cursor = await db.execute("SELECT COUNT(*) FROM users")
-        return (await cursor.fetchone())[0]
-        
-async def delete_word(word_id: int):
-    async with aiosqlite.connect(DB_NAME) as db:
-        await db.execute(
-            "DELETE FROM words WHERE id = ?",
-            (word_id,)
-        )
-        await db.commit()
+    conn = await get_connection()
 
-async def update_word(word_id: int, english: str, russian: str):
-    async with aiosqlite.connect(DB_NAME) as db:
-        await db.execute(
-            """
-            UPDATE words
-            SET english = ?, russian = ?
-            WHERE id = ?
-            """,
-            (english, russian, word_id)
-        )
-        await db.commit()
-
-async def delete_reminder(user_id: int):
-    async with aiosqlite.connect(DB_NAME) as db:
-        await db.execute(
-            "DELETE FROM reminders WHERE user_id = ?",
-            (user_id,)
-        )
-        await db.commit()
-
-async def shuffle_words(user_id: int):
-    async with aiosqlite.connect(DB_NAME) as db:
-
-        cursor = await db.execute(
-            """
-            SELECT id
-            FROM words
-            WHERE user_id = ?
-            ORDER BY position
-            """,
-            (user_id,)
+    try:
+        return await conn.fetchval(
+            "SELECT COUNT(*) FROM users"
         )
 
-        words = await cursor.fetchall()
+    finally:
+        await conn.close()
 
-        if len(words) < 2:
-            return
-
-        ids = [word[0] for word in words]
-
-        random.shuffle(ids)
-
-        for position, word_id in enumerate(ids, start=1):
-            await db.execute(
-                """
-                UPDATE words
-                SET position = ?
-                WHERE id = ?
-                """,
-                (position, word_id)
-            )
-
-        await db.commit()
 
 async def get_words_count(user_id: int):
-    async with aiosqlite.connect(DB_NAME) as db:
-        cursor = await db.execute(
-            "SELECT COUNT(*) FROM words WHERE user_id = ?",
-            (user_id,)
+    conn = await get_connection()
+
+    try:
+        return await conn.fetchval("""
+            SELECT COUNT(*)
+            FROM words
+            WHERE user_id = $1
+        """, user_id)
+
+    finally:
+        await conn.close()
+
+
+async def delete_word(word_id: int):
+    conn = await get_connection()
+
+    try:
+        await conn.execute(
+            "DELETE FROM words WHERE id = $1",
+            word_id
         )
-        return (await cursor.fetchone())[0]
+
+    finally:
+        await conn.close()
+
+
+async def update_word(
+    word_id: int,
+    english: str,
+    russian: str
+):
+    conn = await get_connection()
+
+    try:
+        await conn.execute("""
+            UPDATE words
+            SET english = $1,
+                russian = $2
+            WHERE id = $3
+        """, english, russian, word_id)
+
+    finally:
+        await conn.close()
+
+
+async def shuffle_words(user_id: int):
+    conn = await get_connection()
+
+    try:
+        rows = await conn.fetch("""
+            SELECT id
+            FROM words
+            WHERE user_id = $1
+            ORDER BY position, id
+        """, user_id)
+
+        if len(rows) < 2:
+            return
+
+        ids = [row["id"] for row in rows]
+        random.shuffle(ids)
+
+        async with conn.transaction():
+            for position, word_id in enumerate(ids, start=1):
+                await conn.execute("""
+                    UPDATE words
+                    SET position = $1
+                    WHERE id = $2
+                """, position, word_id)
+
+    finally:
+        await conn.close()
