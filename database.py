@@ -1,9 +1,12 @@
 import os
 import random
+from typing import Iterable
+
 import asyncpg
 
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+MAX_CATEGORIES = 5
 
 if not DATABASE_URL:
     raise RuntimeError("Переменная DATABASE_URL не найдена")
@@ -17,7 +20,6 @@ async def init_db():
     conn = await get_connection()
 
     try:
-        # Пользователи
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS users(
                 user_id BIGINT PRIMARY KEY,
@@ -25,7 +27,6 @@ async def init_db():
             )
         """)
 
-        # Категории
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS categories(
                 id BIGSERIAL PRIMARY KEY,
@@ -35,7 +36,6 @@ async def init_db():
             )
         """)
 
-        # Слова
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS words(
                 id BIGSERIAL PRIMARY KEY,
@@ -47,13 +47,11 @@ async def init_db():
             )
         """)
 
-        # Добавляем category_id в старую таблицу words
         await conn.execute("""
             ALTER TABLE words
             ADD COLUMN IF NOT EXISTS category_id BIGINT
         """)
 
-        # Добавляем связь words -> categories
         await conn.execute("""
             DO $$
             BEGIN
@@ -72,7 +70,6 @@ async def init_db():
             $$;
         """)
 
-        # Напоминания
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS reminders(
                 user_id BIGINT PRIMARY KEY,
@@ -83,6 +80,21 @@ async def init_db():
         await conn.execute("""
             ALTER TABLE users
             ADD COLUMN IF NOT EXISTS is_premium BOOLEAN DEFAULT FALSE
+        """)
+
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_words_user_id
+            ON words(user_id)
+        """)
+
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_words_category_id
+            ON words(category_id)
+        """)
+
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_categories_user_id
+            ON categories(user_id)
         """)
 
         print("✅ Таблицы PostgreSQL созданы/проверены")
@@ -101,16 +113,22 @@ async def add_word(
     russian: str,
     category_id: int | None = None
 ):
+    english = english.strip()
+    russian = russian.strip()
+
+    if not english or not russian:
+        return False
+
     conn = await get_connection()
 
     try:
-        # Проверяем, что категория принадлежит этому пользователю
         if category_id is not None:
             category_exists = await conn.fetchval("""
                 SELECT EXISTS(
                     SELECT 1
                     FROM categories
-                    WHERE id = $1 AND user_id = $2
+                    WHERE id = $1
+                      AND user_id = $2
                 )
             """, category_id, user_id)
 
@@ -141,6 +159,75 @@ async def add_word(
         )
 
         return True
+
+    finally:
+        await conn.close()
+
+
+async def add_words_batch(
+    user_id: int,
+    words: Iterable[tuple[str, str]],
+    category_id: int | None = None
+):
+    prepared_words = []
+
+    for english, russian in words:
+        english = english.strip()
+        russian = russian.strip()
+
+        if english and russian:
+            prepared_words.append((english, russian))
+
+    if not prepared_words:
+        return 0
+
+    conn = await get_connection()
+
+    try:
+        async with conn.transaction():
+            if category_id is not None:
+                category_exists = await conn.fetchval("""
+                    SELECT EXISTS(
+                        SELECT 1
+                        FROM categories
+                        WHERE id = $1
+                          AND user_id = $2
+                    )
+                """, category_id, user_id)
+
+                if not category_exists:
+                    return 0
+
+            max_position = await conn.fetchval("""
+                SELECT COALESCE(MAX(position), 0)
+                FROM words
+                WHERE user_id = $1
+            """, user_id)
+
+            rows = [
+                (
+                    user_id,
+                    english,
+                    russian,
+                    max_position + index,
+                    category_id
+                )
+                for index, (english, russian)
+                in enumerate(prepared_words, start=1)
+            ]
+
+            await conn.executemany("""
+                INSERT INTO words(
+                    user_id,
+                    english,
+                    russian,
+                    position,
+                    category_id
+                )
+                VALUES ($1, $2, $3, $4, $5)
+            """, rows)
+
+        return len(rows)
 
     finally:
         await conn.close()
@@ -245,7 +332,7 @@ async def update_word(
             SET english = $1,
                 russian = $2
             WHERE id = $3
-        """, english, russian, word_id)
+        """, english.strip(), russian.strip(), word_id)
 
     finally:
         await conn.close()
@@ -284,22 +371,51 @@ async def shuffle_words(user_id: int):
 # КАТЕГОРИИ
 # =========================================================
 
+async def get_categories_count(user_id: int):
+    conn = await get_connection()
+
+    try:
+        return await conn.fetchval("""
+            SELECT COUNT(*)
+            FROM categories
+            WHERE user_id = $1
+        """, user_id)
+
+    finally:
+        await conn.close()
+
+
 async def create_category(
     user_id: int,
     name: str
 ):
+    name = name.strip()
+
+    if not name:
+        return None
+
     conn = await get_connection()
 
     try:
-        category_id = await conn.fetchval("""
-            INSERT INTO categories(user_id, name)
-            VALUES ($1, $2)
-            ON CONFLICT (user_id, name)
-            DO NOTHING
-            RETURNING id
-        """, user_id, name)
+        async with conn.transaction():
+            categories_count = await conn.fetchval("""
+                SELECT COUNT(*)
+                FROM categories
+                WHERE user_id = $1
+            """, user_id)
 
-        return category_id
+            if categories_count >= MAX_CATEGORIES:
+                return None
+
+            category_id = await conn.fetchval("""
+                INSERT INTO categories(user_id, name)
+                VALUES ($1, $2)
+                ON CONFLICT (user_id, name)
+                DO NOTHING
+                RETURNING id
+            """, user_id, name)
+
+            return category_id
 
     finally:
         await conn.close()
@@ -320,7 +436,7 @@ async def get_categories(user_id: int):
                 AND w.user_id = c.user_id
             WHERE c.user_id = $1
             GROUP BY c.id, c.name
-            ORDER BY c.name
+            ORDER BY c.id
         """, user_id)
 
         return [
