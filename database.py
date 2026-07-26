@@ -149,6 +149,9 @@ async def add_user(user_id: int):
         )
         await db.commit()
 
+        cursor = await db.execute("SELECT COUNT(*) FROM users")
+        print("После вставки:", await cursor.fetchone())
+
 
 async def get_users_count():
     async with aiosqlite.connect(DB_NAME) as db:
