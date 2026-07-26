@@ -118,21 +118,46 @@ async def show_categories(
 
 @router.callback_query(F.data == "my_categories")
 async def my_categories_callback(callback: CallbackQuery):
-    premium = await is_premium(callback.from_user.id)
-
-    if not premium:
-        await callback.answer(
-            "Категории доступны только в Premium.",
-            show_alert=True
-        )
-        return
-
-    await callback.answer()
-
-    await show_categories(
-        callback.message,
-        callback.from_user.id
+    print(
+        f"✅ Нажата кнопка категорий. "
+        f"Пользователь: {callback.from_user.id}"
     )
+
+    try:
+        premium = await is_premium(
+            callback.from_user.id
+        )
+
+        print(f"Premium пользователя: {premium}")
+
+        if not premium:
+            await callback.answer(
+                "Категории доступны только в Premium.",
+                show_alert=True
+            )
+            return
+
+        await callback.answer()
+
+        await show_categories(
+            callback.message,
+            callback.from_user.id
+        )
+
+    except Exception as error:
+        print(
+            "❌ ОШИБКА КАТЕГОРИЙ:",
+            type(error).__name__,
+            error
+        )
+
+        try:
+            await callback.answer(
+                "❌ Возникла ошибка. Смотри логи Railway.",
+                show_alert=True
+            )
+        except Exception:
+            pass
 
 
 @router.callback_query(F.data == "create_category")
