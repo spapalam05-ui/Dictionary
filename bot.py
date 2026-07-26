@@ -19,12 +19,15 @@ from handlers.admin import router as admin_router
 from handlers.remind import reminder_loop
 from handlers.premium import router as premium_router
 from handlers.categories import router as categories_router
+from handlers.menu_buttons import router as menu_buttons_router
 
 
 ROBOKASSA_PASSWORD_2 = os.getenv("ROBOKASSA_PASSWORD_2")
 
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher()
+
+dp.include_router(menu_buttons_router)
 
 dp.include_router(admin_router)
 dp.include_router(start_router)
