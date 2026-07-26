@@ -1,11 +1,11 @@
 import asyncio
 from datetime import datetime
 
-from aiogram import Router,F
+from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message
 
-from database import get_reminders
+from database import get_reminders, is_premium
 from keyboards.remind_keyboard import remind_keyboard
 
 router = Router()
@@ -13,11 +13,26 @@ router = Router()
 
 @router.message(F.text == "⏰ Напоминание")
 async def reminder_menu(message: Message):
+
+    premium = await is_premium(message.from_user.id)
+
+    if not premium:
+        await message.answer(
+            "🔒 <b>Напоминания доступны только в Premium.</b>\n\n"
+            "⭐ <b>Premium включает:</b>\n"
+            "• 📂 Категории\n"
+            "• ⏰ Напоминания\n"
+            "• 🔄 Перемещение слов между папками\n"
+            "• ✅❌ Режим «Знаю / Не знаю»\n"
+            "• ♾️ Безлимит слов",
+            parse_mode="HTML"
+        )
+        return
+
     await message.answer(
         "⏰ Через сколько напомнить повторить слова?",
         reply_markup=remind_keyboard
     )
-
 
 
 async def reminder_loop(bot):
@@ -45,5 +60,3 @@ async def reminder_loop(bot):
                     print(e)
 
         await asyncio.sleep(30)
-
-    
