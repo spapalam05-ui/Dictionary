@@ -1,511 +1,584 @@
-import os
-import random
-import asyncpg
+from aiogram import Router, F
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.types import (
+    Message,
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+)
+
+from database import (
+    is_premium,
+    create_category,
+    get_categories,
+    get_category,
+    delete_category,
+    add_word,
+    get_words,
+)
+
+from handlers.word import (
+    study_sessions,
+    show_next_word,
+)
 
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-if not DATABASE_URL:
-    raise RuntimeError("Переменная DATABASE_URL не найдена")
+router = Router()
 
 
-async def get_connection():
-    return await asyncpg.connect(DATABASE_URL)
+class CategoryStates(StatesGroup):
+    waiting_for_category_name = State()
+    waiting_for_category_word = State()
 
 
-async def init_db():
-    conn = await get_connection()
-
-    try:
-        # Пользователи
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS users(
-                user_id BIGINT PRIMARY KEY,
-                is_premium BOOLEAN DEFAULT FALSE
-            )
-        """)
-
-        # Категории
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS categories(
-                id BIGSERIAL PRIMARY KEY,
-                user_id BIGINT NOT NULL,
-                name TEXT NOT NULL,
-                UNIQUE(user_id, name)
-            )
-        """)
-
-        # Слова
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS words(
-                id BIGSERIAL PRIMARY KEY,
-                user_id BIGINT NOT NULL,
-                english TEXT NOT NULL,
-                russian TEXT NOT NULL,
-                position INTEGER NOT NULL DEFAULT 0,
-                category_id BIGINT
-            )
-        """)
-
-        # Добавляем category_id в старую таблицу words
-        await conn.execute("""
-            ALTER TABLE words
-            ADD COLUMN IF NOT EXISTS category_id BIGINT
-        """)
-
-        # Добавляем связь words -> categories
-        await conn.execute("""
-            DO $$
-            BEGIN
-                IF NOT EXISTS (
-                    SELECT 1
-                    FROM pg_constraint
-                    WHERE conname = 'words_category_id_fkey'
-                ) THEN
-                    ALTER TABLE words
-                    ADD CONSTRAINT words_category_id_fkey
-                    FOREIGN KEY (category_id)
-                    REFERENCES categories(id)
-                    ON DELETE SET NULL;
-                END IF;
-            END
-            $$;
-        """)
-
-        # Напоминания
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS reminders(
-                user_id BIGINT PRIMARY KEY,
-                remind_datetime TEXT NOT NULL
-            )
-        """)
-
-        await conn.execute("""
-            ALTER TABLE users
-            ADD COLUMN IF NOT EXISTS is_premium BOOLEAN DEFAULT FALSE
-        """)
-
-        print("✅ Таблицы PostgreSQL созданы/проверены")
-
-    finally:
-        await conn.close()
-
-
-# =========================================================
-# СЛОВА
-# =========================================================
-
-async def add_word(
-    user_id: int,
-    english: str,
-    russian: str,
-    category_id: int | None = None
-):
-    conn = await get_connection()
-
-    try:
-        # Проверяем, что категория принадлежит этому пользователю
-        if category_id is not None:
-            category_exists = await conn.fetchval("""
-                SELECT EXISTS(
-                    SELECT 1
-                    FROM categories
-                    WHERE id = $1 AND user_id = $2
+def categories_menu_keyboard():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="➕ Создать категорию",
+                    callback_data="create_category"
                 )
-            """, category_id, user_id)
-
-            if not category_exists:
-                return False
-
-        max_position = await conn.fetchval("""
-            SELECT COALESCE(MAX(position), 0)
-            FROM words
-            WHERE user_id = $1
-        """, user_id)
-
-        await conn.execute("""
-            INSERT INTO words(
-                user_id,
-                english,
-                russian,
-                position,
-                category_id
-            )
-            VALUES ($1, $2, $3, $4, $5)
-        """,
-            user_id,
-            english,
-            russian,
-            max_position + 1,
-            category_id
-        )
-
-        return True
-
-    finally:
-        await conn.close()
-
-
-async def get_words(
-    user_id: int,
-    category_id: int | None = None
-):
-    conn = await get_connection()
-
-    try:
-        if category_id is None:
-            rows = await conn.fetch("""
-                SELECT id, english, russian
-                FROM words
-                WHERE user_id = $1
-                ORDER BY position, id
-            """, user_id)
-
-        else:
-            rows = await conn.fetch("""
-                SELECT id, english, russian
-                FROM words
-                WHERE user_id = $1
-                  AND category_id = $2
-                ORDER BY position, id
-            """, user_id, category_id)
-
-        return [
-            (
-                row["id"],
-                row["english"],
-                row["russian"]
-            )
-            for row in rows
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📂 Мои категории",
+                    callback_data="my_categories"
+                )
+            ]
         ]
-
-    finally:
-        await conn.close()
+    )
 
 
-async def get_all_words(user_id: int):
-    return await get_words(user_id)
-
-
-async def get_words_count(user_id: int):
-    conn = await get_connection()
-
-    try:
-        return await conn.fetchval("""
-            SELECT COUNT(*)
-            FROM words
-            WHERE user_id = $1
-        """, user_id)
-
-    finally:
-        await conn.close()
-
-
-async def get_category_words_count(
+async def show_categories(
+    message: Message,
     user_id: int,
-    category_id: int
+    edit: bool = False
 ):
-    conn = await get_connection()
+    categories = await get_categories(user_id)
 
-    try:
-        return await conn.fetchval("""
-            SELECT COUNT(*)
-            FROM words
-            WHERE user_id = $1
-              AND category_id = $2
-        """, user_id, category_id)
-
-    finally:
-        await conn.close()
-
-
-async def delete_word(word_id: int):
-    conn = await get_connection()
-
-    try:
-        await conn.execute(
-            "DELETE FROM words WHERE id = $1",
-            word_id
+    if not categories:
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="➕ Создать категорию",
+                        callback_data="create_category"
+                    )
+                ]
+            ]
         )
 
-    finally:
-        await conn.close()
+        text = (
+            "📂 <b>У тебя пока нет категорий.</b>\n\n"
+            "Создай первую категорию, например:\n"
+            "• Путешествия\n"
+            "• Работа\n"
+            "• Фильмы"
+        )
 
+    else:
+        buttons = []
 
-async def update_word(
-    word_id: int,
-    english: str,
-    russian: str
-):
-    conn = await get_connection()
+        for category_id, name, words_count in categories:
+            buttons.append([
+                InlineKeyboardButton(
+                    text=f"📂 {name} — {words_count} слов",
+                    callback_data=f"open_category:{category_id}"
+                )
+            ])
 
-    try:
-        await conn.execute("""
-            UPDATE words
-            SET english = $1,
-                russian = $2
-            WHERE id = $3
-        """, english, russian, word_id)
-
-    finally:
-        await conn.close()
-
-
-async def shuffle_words(user_id: int):
-    conn = await get_connection()
-
-    try:
-        rows = await conn.fetch("""
-            SELECT id
-            FROM words
-            WHERE user_id = $1
-            ORDER BY position, id
-        """, user_id)
-
-        if len(rows) < 2:
-            return
-
-        ids = [row["id"] for row in rows]
-        random.shuffle(ids)
-
-        async with conn.transaction():
-            for position, word_id in enumerate(ids, start=1):
-                await conn.execute("""
-                    UPDATE words
-                    SET position = $1
-                    WHERE id = $2
-                """, position, word_id)
-
-    finally:
-        await conn.close()
-
-
-# =========================================================
-# КАТЕГОРИИ
-# =========================================================
-
-async def create_category(
-    user_id: int,
-    name: str
-):
-    conn = await get_connection()
-
-    try:
-        category_id = await conn.fetchval("""
-            INSERT INTO categories(user_id, name)
-            VALUES ($1, $2)
-            ON CONFLICT (user_id, name)
-            DO NOTHING
-            RETURNING id
-        """, user_id, name)
-
-        return category_id
-
-    finally:
-        await conn.close()
-
-
-async def get_categories(user_id: int):
-    conn = await get_connection()
-
-    try:
-        rows = await conn.fetch("""
-            SELECT
-                c.id,
-                c.name,
-                COUNT(w.id) AS words_count
-            FROM categories c
-            LEFT JOIN words w
-                ON w.category_id = c.id
-                AND w.user_id = c.user_id
-            WHERE c.user_id = $1
-            GROUP BY c.id, c.name
-            ORDER BY c.name
-        """, user_id)
-
-        return [
-            (
-                row["id"],
-                row["name"],
-                row["words_count"]
+        buttons.append([
+            InlineKeyboardButton(
+                text="➕ Создать категорию",
+                callback_data="create_category"
             )
-            for row in rows
+        ])
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=buttons
+        )
+
+        text = "📂 <b>Мои категории</b>"
+
+    if edit:
+        await message.edit_text(
+            text,
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
+    else:
+        await message.answer(
+            text,
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
+
+
+@router.callback_query(F.data == "my_categories")
+async def my_categories_callback(callback: CallbackQuery):
+    premium = await is_premium(callback.from_user.id)
+
+    if not premium:
+        await callback.answer(
+            "Категории доступны только в Premium.",
+            show_alert=True
+        )
+        return
+
+    await callback.answer()
+
+    await show_categories(
+        callback.message,
+        callback.from_user.id
+    )
+
+
+@router.callback_query(F.data == "create_category")
+async def create_category_callback(
+    callback: CallbackQuery,
+    state: FSMContext
+):
+    premium = await is_premium(callback.from_user.id)
+
+    if not premium:
+        await callback.answer(
+            "Категории доступны только в Premium.",
+            show_alert=True
+        )
+        return
+
+    await state.set_state(
+        CategoryStates.waiting_for_category_name
+    )
+
+    await callback.message.edit_text(
+        "➕ <b>Создание категории</b>\n\n"
+        "Напиши название категории.\n\n"
+        "Например: <code>Путешествия</code>",
+        parse_mode="HTML"
+    )
+
+    await callback.answer()
+
+
+@router.message(
+    CategoryStates.waiting_for_category_name
+)
+async def receive_category_name(
+    message: Message,
+    state: FSMContext
+):
+    if not message.text:
+        await message.answer(
+            "❌ Отправь название категории текстом."
+        )
+        return
+
+    name = message.text.strip()
+
+    if len(name) < 2:
+        await message.answer(
+            "❌ Название слишком короткое."
+        )
+        return
+
+    if len(name) > 40:
+        await message.answer(
+            "❌ Название должно быть короче 40 символов."
+        )
+        return
+
+    category_id = await create_category(
+        message.from_user.id,
+        name
+    )
+
+    if category_id is None:
+        await message.answer(
+            "❌ Категория с таким названием уже существует."
+        )
+        return
+
+    await state.clear()
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="📂 Открыть категорию",
+                    callback_data=f"open_category:{category_id}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📂 Все категории",
+                    callback_data="my_categories"
+                )
+            ]
         ]
+    )
 
-    finally:
-        await conn.close()
-
-
-async def get_category(
-    user_id: int,
-    category_id: int
-):
-    conn = await get_connection()
-
-    try:
-        row = await conn.fetchrow("""
-            SELECT id, name
-            FROM categories
-            WHERE id = $1
-              AND user_id = $2
-        """, category_id, user_id)
-
-        if row is None:
-            return None
-
-        return row["id"], row["name"]
-
-    finally:
-        await conn.close()
+    await message.answer(
+        f"✅ Категория <b>{name}</b> создана!",
+        reply_markup=keyboard,
+        parse_mode="HTML"
+    )
 
 
-async def delete_category(
-    user_id: int,
-    category_id: int
-):
-    conn = await get_connection()
+@router.callback_query(
+    F.data.startswith("open_category:")
+)
+async def open_category(callback: CallbackQuery):
+    category_id = int(
+        callback.data.split(":")[1]
+    )
 
-    try:
-        result = await conn.execute("""
-            DELETE FROM categories
-            WHERE id = $1
-              AND user_id = $2
-        """, category_id, user_id)
+    category = await get_category(
+        callback.from_user.id,
+        category_id
+    )
 
-        return result == "DELETE 1"
+    if category is None:
+        await callback.answer(
+            "Категория не найдена.",
+            show_alert=True
+        )
+        return
 
-    finally:
-        await conn.close()
+    _, category_name = category
 
+    words = await get_words(
+        callback.from_user.id,
+        category_id
+    )
 
-# =========================================================
-# НАПОМИНАНИЯ
-# =========================================================
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="➕ Добавить слово",
+                    callback_data=f"add_category_word:{category_id}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📖 Учить категорию",
+                    callback_data=f"study_category:{category_id}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🗑️ Удалить категорию",
+                    callback_data=f"confirm_delete_category:{category_id}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="⬅️ Назад",
+                    callback_data="my_categories"
+                )
+            ]
+        ]
+    )
 
-async def set_reminder(
-    user_id: int,
-    remind_datetime: str
-):
-    conn = await get_connection()
+    if words:
+        words_preview = "\n".join(
+            f"• 🇬🇧 {english} — 🇷🇺 {russian}"
+            for _, english, russian in words[:10]
+        )
 
-    try:
-        await conn.execute("""
-            INSERT INTO reminders(user_id, remind_datetime)
-            VALUES ($1, $2)
-            ON CONFLICT (user_id)
-            DO UPDATE SET
-                remind_datetime = EXCLUDED.remind_datetime
-        """, user_id, remind_datetime)
-
-    finally:
-        await conn.close()
-
-
-async def get_reminders():
-    conn = await get_connection()
-
-    try:
-        rows = await conn.fetch("""
-            SELECT user_id, remind_datetime
-            FROM reminders
-        """)
-
-        return [
-            (
-                row["user_id"],
-                row["remind_datetime"]
+        if len(words) > 10:
+            words_preview += (
+                f"\n\n…и ещё {len(words) - 10}"
             )
-            for row in rows
+    else:
+        words_preview = "В категории пока нет слов."
+
+    await callback.message.edit_text(
+        f"📂 <b>{category_name}</b>\n\n"
+        f"📚 Слов: <b>{len(words)}</b>\n\n"
+        f"{words_preview}",
+        reply_markup=keyboard,
+        parse_mode="HTML"
+    )
+
+    await callback.answer()
+
+
+@router.callback_query(
+    F.data.startswith("add_category_word:")
+)
+async def add_category_word_callback(
+    callback: CallbackQuery,
+    state: FSMContext
+):
+    category_id = int(
+        callback.data.split(":")[1]
+    )
+
+    category = await get_category(
+        callback.from_user.id,
+        category_id
+    )
+
+    if category is None:
+        await callback.answer(
+            "Категория не найдена.",
+            show_alert=True
+        )
+        return
+
+    await state.update_data(
+        category_id=category_id
+    )
+
+    await state.set_state(
+        CategoryStates.waiting_for_category_word
+    )
+
+    await callback.message.edit_text(
+        f"➕ <b>Добавление слова</b>\n\n"
+        f"Категория: <b>{category[1]}</b>\n\n"
+        "Напиши слово в формате:\n"
+        "<code>apple - яблоко</code>",
+        parse_mode="HTML"
+    )
+
+    await callback.answer()
+
+
+@router.message(
+    CategoryStates.waiting_for_category_word
+)
+async def receive_category_word(
+    message: Message,
+    state: FSMContext
+):
+    if not message.text:
+        await message.answer(
+            "❌ Отправь слово текстом."
+        )
+        return
+
+    text = message.text.strip()
+
+    if "-" not in text:
+        await message.answer(
+            "❌ Неправильный формат.\n\n"
+            "Напиши так:\n"
+            "<code>apple - яблоко</code>",
+            parse_mode="HTML"
+        )
+        return
+
+    english, russian = map(
+        str.strip,
+        text.split("-", 1)
+    )
+
+    if not english or not russian:
+        await message.answer(
+            "❌ Слово и перевод не должны быть пустыми."
+        )
+        return
+
+    data = await state.get_data()
+    category_id = data.get("category_id")
+
+    if category_id is None:
+        await state.clear()
+        await message.answer(
+            "❌ Не удалось определить категорию."
+        )
+        return
+
+    category = await get_category(
+        message.from_user.id,
+        category_id
+    )
+
+    if category is None:
+        await state.clear()
+        await message.answer(
+            "❌ Категория больше не существует."
+        )
+        return
+
+    added = await add_word(
+        message.from_user.id,
+        english,
+        russian,
+        category_id
+    )
+
+    if not added:
+        await state.clear()
+        await message.answer(
+            "❌ Не удалось добавить слово."
+        )
+        return
+
+    await state.clear()
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="➕ Добавить ещё",
+                    callback_data=f"add_category_word:{category_id}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📂 Открыть категорию",
+                    callback_data=f"open_category:{category_id}"
+                )
+            ]
         ]
+    )
 
-    finally:
-        await conn.close()
+    await message.answer(
+        f"✅ Слово добавлено в категорию "
+        f"<b>{category[1]}</b>!\n\n"
+        f"🇬🇧 {english}\n"
+        f"🇷🇺 {russian}",
+        reply_markup=keyboard,
+        parse_mode="HTML"
+    )
 
 
-async def delete_reminder(user_id: int):
-    conn = await get_connection()
+@router.callback_query(
+    F.data.startswith("study_category:")
+)
+async def study_category(callback: CallbackQuery):
+    category_id = int(
+        callback.data.split(":")[1]
+    )
 
-    try:
-        await conn.execute(
-            "DELETE FROM reminders WHERE user_id = $1",
-            user_id
+    category = await get_category(
+        callback.from_user.id,
+        category_id
+    )
+
+    if category is None:
+        await callback.answer(
+            "Категория не найдена.",
+            show_alert=True
         )
+        return
 
-    finally:
-        await conn.close()
+    words = await get_words(
+        callback.from_user.id,
+        category_id
+    )
 
-
-# =========================================================
-# ПОЛЬЗОВАТЕЛИ И PREMIUM
-# =========================================================
-
-async def add_user(user_id: int):
-    conn = await get_connection()
-
-    try:
-        await conn.execute("""
-            INSERT INTO users(user_id)
-            VALUES ($1)
-            ON CONFLICT (user_id) DO NOTHING
-        """, user_id)
-
-    finally:
-        await conn.close()
-
-
-async def get_users_count():
-    conn = await get_connection()
-
-    try:
-        return await conn.fetchval(
-            "SELECT COUNT(*) FROM users"
+    if not words:
+        await callback.answer(
+            "В этой категории пока нет слов.",
+            show_alert=True
         )
+        return
 
-    finally:
-        await conn.close()
+    user_id = callback.from_user.id
 
+    study_sessions[user_id] = {
+        "words": words,
+        "index": 0,
+        "repeat": [],
+        "repeat_mode": False,
+        "category_id": category_id
+    }
 
-async def is_premium(user_id: int):
-    conn = await get_connection()
+    await callback.answer()
 
-    try:
-        result = await conn.fetchval("""
-            SELECT is_premium
-            FROM users
-            WHERE user_id = $1
-        """, user_id)
+    await callback.message.delete()
 
-        return bool(result)
-
-    finally:
-        await conn.close()
-
-
-async def give_premium(user_id: int):
-    conn = await get_connection()
-
-    try:
-        await conn.execute("""
-            INSERT INTO users(user_id, is_premium)
-            VALUES ($1, TRUE)
-            ON CONFLICT (user_id)
-            DO UPDATE SET is_premium = TRUE
-        """, user_id)
-
-    finally:
-        await conn.close()
+    await show_next_word(
+        callback.message,
+        user_id
+    )
 
 
-async def remove_premium(user_id: int):
-    conn = await get_connection()
+@router.callback_query(
+    F.data.startswith("confirm_delete_category:")
+)
+async def confirm_delete_category(
+    callback: CallbackQuery
+):
+    category_id = int(
+        callback.data.split(":")[1]
+    )
 
-    try:
-        await conn.execute("""
-            INSERT INTO users(user_id, is_premium)
-            VALUES ($1, FALSE)
-            ON CONFLICT (user_id)
-            DO UPDATE SET is_premium = FALSE
-        """, user_id)
+    category = await get_category(
+        callback.from_user.id,
+        category_id
+    )
 
-    finally:
-        await conn.close()
+    if category is None:
+        await callback.answer(
+            "Категория не найдена.",
+            show_alert=True
+        )
+        return
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="✅ Да, удалить",
+                    callback_data=f"delete_category:{category_id}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="❌ Отмена",
+                    callback_data=f"open_category:{category_id}"
+                )
+            ]
+        ]
+    )
+
+    await callback.message.edit_text(
+        f"🗑️ Удалить категорию "
+        f"<b>{category[1]}</b>?\n\n"
+        "Слова не удалятся. Они останутся в общем списке.",
+        reply_markup=keyboard,
+        parse_mode="HTML"
+    )
+
+    await callback.answer()
+
+
+@router.callback_query(
+    F.data.startswith("delete_category:")
+)
+async def delete_category_callback(
+    callback: CallbackQuery
+):
+    category_id = int(
+        callback.data.split(":")[1]
+    )
+
+    deleted = await delete_category(
+        callback.from_user.id,
+        category_id
+    )
+
+    if not deleted:
+        await callback.answer(
+            "Категория не найдена.",
+            show_alert=True
+        )
+        return
+
+    await callback.answer(
+        "✅ Категория удалена"
+    )
+
+    await show_categories(
+        callback.message,
+        callback.from_user.id,
+        edit=True
+    )

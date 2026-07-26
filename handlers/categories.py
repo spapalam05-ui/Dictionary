@@ -151,14 +151,13 @@ async def my_categories_callback(callback: CallbackQuery):
         )
         return
 
-    await show_categories(
-        callback.message,
-        callback.from_user.id,
-        edit=True
-    )
-
     await callback.answer()
 
+    await callback.message.answer(
+        "📂 <b>Категории</b>\n\n"
+        "Выбери действие:",
+        parse_mode="HTML"
+    )
 
 @router.callback_query(F.data == "create_category")
 async def create_category_callback(
@@ -588,3 +587,4 @@ async def delete_category_callback(
         callback.from_user.id,
         edit=True
     )
+
