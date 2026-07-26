@@ -10,6 +10,7 @@ from aiogram.types import (
 
 from database import (
     delete_reminder,
+    is_premium,
     set_reminder,
     shuffle_words,
 )
@@ -101,12 +102,29 @@ async def show_translation(
     words = session.get("words", [])
     title = get_card_title(user_id)
 
+    premium = await is_premium(user_id)
+
+    if premium:
+        keyboard = answer_keyboard()
+        premium_text = (
+            "\n\nВыбери, запомнил ли ты это слово:"
+        )
+    else:
+        keyboard = next_word_keyboard()
+        premium_text = (
+            "\n\n➡️ Нажми «Следующее слово».\n\n"
+            "⭐ В Premium доступны кнопки "
+            "«Знаю» и «Не знаю», а также повторение "
+            "забытых слов."
+        )
+
     await callback.message.edit_text(
         f"{title}\n\n"
         f"<b>{index + 1}/{len(words)}</b>\n\n"
         f"🇬🇧 <b>{english}</b>\n"
-        f"🇷🇺 <b>{russian}</b>",
-        reply_markup=answer_keyboard(),
+        f"🇷🇺 <b>{russian}</b>"
+        f"{premium_text}",
+        reply_markup=keyboard,
         parse_mode="HTML",
     )
 
@@ -114,7 +132,7 @@ async def show_translation(
 
 
 # =========================================================
-# ОТВЕТ «НЕ ЗНАЮ»
+# ОТВЕТ «НЕ ЗНАЮ» — PREMIUM
 # =========================================================
 
 @router.callback_query(F.data == "dontknow")
@@ -122,6 +140,14 @@ async def dontknow(
     callback: CallbackQuery,
 ) -> None:
     user_id = callback.from_user.id
+
+    if not await is_premium(user_id):
+        await callback.answer(
+            "⭐ Эта функция доступна только в Premium.",
+            show_alert=True,
+        )
+        return
+
     session = study_sessions.get(user_id)
 
     if session is None:
@@ -144,9 +170,7 @@ async def dontknow(
     word = words[index]
     repeat_words = session.setdefault("repeat", [])
 
-    # В основном уроке добавляем забытое слово.
-    # В повторении слово уже находится в repeat,
-    # поэтому оно остаётся там до правильного ответа.
+    # Добавляем забытое слово в повторение.
     if word not in repeat_words:
         repeat_words.append(word)
 
@@ -164,7 +188,7 @@ async def dontknow(
 
 
 # =========================================================
-# ОТВЕТ «ЗНАЮ»
+# ОТВЕТ «ЗНАЮ» — PREMIUM
 # =========================================================
 
 @router.callback_query(F.data == "know")
@@ -172,6 +196,14 @@ async def know(
     callback: CallbackQuery,
 ) -> None:
     user_id = callback.from_user.id
+
+    if not await is_premium(user_id):
+        await callback.answer(
+            "⭐ Эта функция доступна только в Premium.",
+            show_alert=True,
+        )
+        return
+
     session = study_sessions.get(user_id)
 
     if session is None:
@@ -244,7 +276,7 @@ async def next_word(
 
 
 # =========================================================
-# ПОВТОР ЗАБЫТЫХ СЛОВ
+# ПОВТОР ЗАБЫТЫХ СЛОВ — PREMIUM
 # =========================================================
 
 @router.callback_query(F.data == "start_repeat")
@@ -252,6 +284,15 @@ async def start_repeat(
     callback: CallbackQuery,
 ) -> None:
     user_id = callback.from_user.id
+
+    if not await is_premium(user_id):
+        await callback.answer(
+            "⭐ Повторение забытых слов доступно "
+            "только в Premium.",
+            show_alert=True,
+        )
+        return
+
     session = study_sessions.get(user_id)
 
     if session is None:
@@ -296,6 +337,16 @@ async def reminder_buttons(
     callback: CallbackQuery,
 ) -> None:
     user_id = callback.from_user.id
+
+    # Дополнительная защита:
+    # даже если бесплатный пользователь каким-то образом
+    # нажмёт старую кнопку напоминания, функция не сработает.
+    if not await is_premium(user_id):
+        await callback.answer(
+            "⭐ Напоминания доступны только в Premium.",
+            show_alert=True,
+        )
+        return
 
     if callback.data == "remind_off":
         await delete_reminder(user_id)
