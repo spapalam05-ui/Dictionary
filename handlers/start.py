@@ -10,7 +10,6 @@ router = Router()
 
 @router.message(CommandStart())
 async def start(message: Message):
-    print("START:", message.from_user.id)
 
     await add_user(message.from_user.id)
 

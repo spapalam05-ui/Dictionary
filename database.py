@@ -140,7 +140,6 @@ async def get_all_words(user_id: int):
 
 
 async def add_user(user_id: int):
-    print("Добавляю пользователя:", user_id)
 
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute(
@@ -150,14 +149,11 @@ async def add_user(user_id: int):
         await db.commit()
 
         cursor = await db.execute("SELECT COUNT(*) FROM users")
-        print("После вставки:", await cursor.fetchone())
 
 
 async def get_users_count():
     async with aiosqlite.connect(DB_NAME) as db:
-        cursor = await db.execute(
-            "SELECT COUNT(*) FROM users"
-        )
+        cursor = await db.execute("SELECT COUNT(*) FROM users")
         return (await cursor.fetchone())[0]
         
 async def delete_word(word_id: int):
