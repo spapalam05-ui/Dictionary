@@ -1,11 +1,14 @@
 import os
 import aiosqlite
+import asyncpg
 import random
 
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 DB_NAME = "dictionary.db"
 
-print("База данных:", os.path.abspath(DB_NAME))
+print("SQLite:", os.path.abspath(DB_NAME))
+print("PostgreSQL:", "OK" if DATABASE_URL else "НЕ НАЙДЕН")
 
 import random
 
