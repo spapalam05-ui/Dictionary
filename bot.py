@@ -35,7 +35,7 @@ async def main():
     # запускаем напоминания
     asyncio.create_task(reminder_loop(bot))
 
-    print("🔥 VERSION 777")
+    print(BOT_TOKEN[:15])
     await dp.start_polling(bot)
 
 

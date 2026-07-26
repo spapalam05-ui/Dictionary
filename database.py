@@ -140,6 +140,8 @@ async def get_all_words(user_id: int):
 
 
 async def add_user(user_id: int):
+    print("Добавляю пользователя:", user_id)
+
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute(
             "INSERT OR IGNORE INTO users(user_id) VALUES (?)",
