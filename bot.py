@@ -28,14 +28,18 @@ dp = Dispatcher()
 
 dp.include_router(admin_router)
 dp.include_router(start_router)
-dp.include_router(help_router)
-dp.include_router(add_router)
-dp.include_router(word_router)
-dp.include_router(callbacks_router)
-dp.include_router(remind_router)
-dp.include_router(my_words_router)
+
+# Кнопки главного меню ставим раньше общих обработчиков
 dp.include_router(premium_router)
 dp.include_router(categories_router)
+dp.include_router(help_router)
+dp.include_router(remind_router)
+dp.include_router(my_words_router)
+dp.include_router(word_router)
+dp.include_router(add_router)
+
+# Этот роутер лучше оставить последним
+dp.include_router(callbacks_router)
 
 
 async def home(request: web.Request):
