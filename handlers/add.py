@@ -2,6 +2,7 @@ from aiogram import Router, F
 from aiogram.filters import Command, CommandObject
 from aiogram.types import Message
 from database import add_word, get_words_count
+from database import is_premium
 
 router = Router()
 
@@ -18,11 +19,12 @@ async def add_button(message: Message):
 async def add(message: Message, command: CommandObject):
 
     count = await get_words_count(message.from_user.id)
+    premium = await is_premium(message.from_user.id)
 
-    if count >= 50:
+    if not premium and count >= 50:
         await message.answer(
-            "❌ Ты достиг лимита в 50 слов.\n\n"
-            "Удалите ненужные слова, чтобы добавить новые."
+            "❌ Ты достиг бесплатного лимита в 50 слов.\n\n"
+            "⭐ Купи Premium, чтобы хранить неограниченное количество слов."
         )
         return
 

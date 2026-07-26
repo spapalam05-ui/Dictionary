@@ -37,7 +37,12 @@ async def init_db():
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS users(
                 user_id BIGINT PRIMARY KEY
+                is_premium BOOLEAN DEFAULT FALSE
             )
+        """)
+        await conn.execute("""
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS is_premium BOOLEAN DEFAULT FALSE
         """)
 
         print("✅ Таблицы PostgreSQL созданы/проверены")
@@ -231,6 +236,48 @@ async def shuffle_words(user_id: int):
                     SET position = $1
                     WHERE id = $2
                 """, position, word_id)
+
+    finally:
+        await conn.close()
+
+async def is_premium(user_id: int):
+    conn = await get_connection()
+
+    try:
+        result = await conn.fetchval(
+            "SELECT is_premium FROM users WHERE user_id = $1",
+            user_id
+        )
+
+        return bool(result)
+
+    finally:
+        await conn.close()
+
+
+async def give_premium(user_id: int):
+    conn = await get_connection()
+
+    try:
+        await conn.execute("""
+            UPDATE users
+            SET is_premium = TRUE
+            WHERE user_id = $1
+        """, user_id)
+
+    finally:
+        await conn.close()
+
+
+async def remove_premium(user_id: int):
+    conn = await get_connection()
+
+    try:
+        await conn.execute("""
+            UPDATE users
+            SET is_premium = FALSE
+            WHERE user_id = $1
+        """, user_id)
 
     finally:
         await conn.close()
