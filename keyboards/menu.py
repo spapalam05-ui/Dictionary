@@ -13,6 +13,7 @@ menu = ReplyKeyboardMarkup(
         ],
                 [   
             KeyboardButton(text="⏰ Напоминание"),
+            KeyboardButton(text="⭐ Premium")
             
         ],
     ],
