@@ -111,7 +111,7 @@ async def add_word(
     user_id: int,
     english: str,
     russian: str,
-    category_id: int | None = None
+    category_id: int | None = None,
 ):
     english = english.strip()
     russian = russian.strip()
@@ -155,7 +155,7 @@ async def add_word(
             english,
             russian,
             max_position + 1,
-            category_id
+            category_id,
         )
 
         return True
@@ -167,7 +167,7 @@ async def add_word(
 async def add_words_batch(
     user_id: int,
     words: Iterable[tuple[str, str]],
-    category_id: int | None = None
+    category_id: int | None = None,
 ):
     prepared_words = []
 
@@ -210,7 +210,7 @@ async def add_words_batch(
                     english,
                     russian,
                     max_position + index,
-                    category_id
+                    category_id,
                 )
                 for index, (english, russian)
                 in enumerate(prepared_words, start=1)
@@ -235,7 +235,7 @@ async def add_words_batch(
 
 async def get_words(
     user_id: int,
-    category_id: int | None = None
+    category_id: int | None = None,
 ):
     conn = await get_connection()
 
@@ -261,10 +261,42 @@ async def get_words(
             (
                 row["id"],
                 row["english"],
-                row["russian"]
+                row["russian"],
             )
             for row in rows
         ]
+
+    finally:
+        await conn.close()
+
+
+async def get_word(
+    user_id: int,
+    word_id: int,
+):
+    conn = await get_connection()
+
+    try:
+        row = await conn.fetchrow("""
+            SELECT
+                id,
+                english,
+                russian,
+                category_id
+            FROM words
+            WHERE id = $1
+              AND user_id = $2
+        """, word_id, user_id)
+
+        if row is None:
+            return None
+
+        return (
+            row["id"],
+            row["english"],
+            row["russian"],
+            row["category_id"],
+        )
 
     finally:
         await conn.close()
@@ -290,7 +322,7 @@ async def get_words_count(user_id: int):
 
 async def get_category_words_count(
     user_id: int,
-    category_id: int
+    category_id: int,
 ):
     conn = await get_connection()
 
@@ -306,13 +338,50 @@ async def get_category_words_count(
         await conn.close()
 
 
+async def move_word_to_category(
+    user_id: int,
+    word_id: int,
+    category_id: int,
+):
+    conn = await get_connection()
+
+    try:
+        category_exists = await conn.fetchval("""
+            SELECT EXISTS(
+                SELECT 1
+                FROM categories
+                WHERE id = $1
+                  AND user_id = $2
+            )
+        """, category_id, user_id)
+
+        if not category_exists:
+            return False
+
+        result = await conn.execute("""
+            UPDATE words
+            SET category_id = $1
+            WHERE id = $2
+              AND user_id = $3
+        """,
+            category_id,
+            word_id,
+            user_id,
+        )
+
+        return result == "UPDATE 1"
+
+    finally:
+        await conn.close()
+
+
 async def delete_word(word_id: int):
     conn = await get_connection()
 
     try:
         await conn.execute(
             "DELETE FROM words WHERE id = $1",
-            word_id
+            word_id,
         )
 
     finally:
@@ -322,7 +391,7 @@ async def delete_word(word_id: int):
 async def update_word(
     word_id: int,
     english: str,
-    russian: str
+    russian: str,
 ):
     conn = await get_connection()
 
@@ -332,7 +401,11 @@ async def update_word(
             SET english = $1,
                 russian = $2
             WHERE id = $3
-        """, english.strip(), russian.strip(), word_id)
+        """,
+            english.strip(),
+            russian.strip(),
+            word_id,
+        )
 
     finally:
         await conn.close()
@@ -387,7 +460,7 @@ async def get_categories_count(user_id: int):
 
 async def create_category(
     user_id: int,
-    name: str
+    name: str,
 ):
     name = name.strip()
 
@@ -443,7 +516,7 @@ async def get_categories(user_id: int):
             (
                 row["id"],
                 row["name"],
-                row["words_count"]
+                row["words_count"],
             )
             for row in rows
         ]
@@ -454,7 +527,7 @@ async def get_categories(user_id: int):
 
 async def get_category(
     user_id: int,
-    category_id: int
+    category_id: int,
 ):
     conn = await get_connection()
 
@@ -477,7 +550,7 @@ async def get_category(
 
 async def delete_category(
     user_id: int,
-    category_id: int
+    category_id: int,
 ):
     conn = await get_connection()
 
@@ -500,7 +573,7 @@ async def delete_category(
 
 async def set_reminder(
     user_id: int,
-    remind_datetime: str
+    remind_datetime: str,
 ):
     conn = await get_connection()
 
@@ -529,7 +602,7 @@ async def get_reminders():
         return [
             (
                 row["user_id"],
-                row["remind_datetime"]
+                row["remind_datetime"],
             )
             for row in rows
         ]
@@ -544,7 +617,7 @@ async def delete_reminder(user_id: int):
     try:
         await conn.execute(
             "DELETE FROM reminders WHERE user_id = $1",
-            user_id
+            user_id,
         )
 
     finally:
