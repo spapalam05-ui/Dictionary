@@ -36,7 +36,6 @@ async def main():
         # запускаем напоминания
         asyncio.create_task(reminder_loop(bot))
 
-        print(BOT_TOKEN[:15])
         print("📚 DictionaryBot запущен!")
 
         await dp.start_polling(bot)
