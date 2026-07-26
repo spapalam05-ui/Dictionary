@@ -1,6 +1,7 @@
 from aiogram import Router, F
 from aiogram.filters import Command, CommandObject
 from aiogram.types import Message
+from aiogram.fsm.context import FSMContext
 
 from database import (
     add_word,
@@ -13,13 +14,20 @@ router = Router()
 
 
 @router.message(F.text == "➕ Добавить")
-async def add_button(message: Message):
+async def add_button(
+    message: Message,
+    state: FSMContext,
+):
+    await state.clear()
+
+    print("✅ НАЖАТА КНОПКА ДОБАВИТЬ")
+
     await message.answer(
         "✍️ Напиши слово в формате:\n\n"
         "<code>/add apple - яблоко</code>\n\n"
         "Для добавления в определённую категорию "
         "открой раздел «📂 Категории».",
-        parse_mode="HTML"
+        parse_mode="HTML",
     )
 
 

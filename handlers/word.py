@@ -8,7 +8,7 @@ from aiogram.types import (
 
 from database import get_words
 from keyboards.word_keyboard import show_translation_keyboard
-
+from aiogram.fsm.context import FSMContext
 
 router = Router()
 
@@ -247,7 +247,14 @@ async def word(message: Message) -> None:
 
 
 @router.message(F.text == "📖 Карточка")
-async def word_button(message: Message) -> None:
+async def word_button(
+    message: Message,
+    state: FSMContext,
+) -> None:
+    await state.clear()
+
+    print("✅ НАЖАТА КНОПКА КАРТОЧКА")
+
     await word(message)
 
 
