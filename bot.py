@@ -16,8 +16,8 @@ from handlers.callbacks import router as callbacks_router
 from handlers.remind import router as remind_router
 from handlers.my_words import router as my_words_router
 from handlers.admin import router as admin_router
-from handlers.premium import router as premium_router
 from handlers.remind import reminder_loop
+from handlers.premium import router as premium_router
 from handlers.categories import router as categories_router
 
 
