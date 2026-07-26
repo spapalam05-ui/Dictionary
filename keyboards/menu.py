@@ -6,15 +6,16 @@ menu = ReplyKeyboardMarkup(
             KeyboardButton(text="📖 Карточка"),
             KeyboardButton(text="➕ Добавить"),
         ],
-        [   
-            KeyboardButton(text="❓ Помощь"),
-            KeyboardButton(text="📋 Мои слова")
-            
+        [
+            KeyboardButton(text="📋 Мои слова"),
+            KeyboardButton(text="📂 Категории"),
         ],
-                [   
+        [
+            KeyboardButton(text="❓ Помощь"),
             KeyboardButton(text="⏰ Напоминание"),
-            KeyboardButton(text="⭐ Premium")
-            
+        ],
+        [
+            KeyboardButton(text="⭐ Premium"),
         ],
     ],
     resize_keyboard=True

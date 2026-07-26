@@ -18,6 +18,7 @@ from handlers.my_words import router as my_words_router
 from handlers.admin import router as admin_router
 from handlers.premium import router as premium_router
 from handlers.remind import reminder_loop
+from handlers.categories import router as categories_router
 
 
 ROBOKASSA_PASSWORD_2 = os.getenv("ROBOKASSA_PASSWORD_2")
@@ -34,6 +35,7 @@ dp.include_router(callbacks_router)
 dp.include_router(remind_router)
 dp.include_router(my_words_router)
 dp.include_router(premium_router)
+dp.include_router(categories_router)
 
 
 async def home(request: web.Request):

@@ -1,8 +1,13 @@
 from aiogram import Router, F
 from aiogram.filters import Command, CommandObject
 from aiogram.types import Message
-from database import add_word, get_words_count
-from database import is_premium
+
+from database import (
+    add_word,
+    get_words_count,
+    is_premium,
+)
+
 
 router = Router()
 
@@ -11,41 +16,55 @@ router = Router()
 async def add_button(message: Message):
     await message.answer(
         "✍️ Напиши слово в формате:\n\n"
-        "/add apple - яблоко"
+        "<code>/add apple - яблоко</code>\n\n"
+        "Для добавления в определённую категорию "
+        "открой раздел «📂 Категории».",
+        parse_mode="HTML"
     )
 
 
 @router.message(Command("add"))
-async def add(message: Message, command: CommandObject):
+async def add(
+    message: Message,
+    command: CommandObject
+):
+    user_id = message.from_user.id
 
-    count = await get_words_count(message.from_user.id)
-    premium = await is_premium(message.from_user.id)
+    count = await get_words_count(user_id)
+    premium = await is_premium(user_id)
 
     if not premium and count >= 50:
         await message.answer(
             "❌ Ты достиг бесплатного лимита в 50 слов.\n\n"
-            "⭐ Купи Premium, чтобы хранить неограниченное количество слов."
+            "⭐ Premium — 1990 ₸\n"
+            "• Безлимит слов\n"
+            "• Категории слов\n"
+            "• Статистика\n"
+            "• Серия обучения"
         )
         return
 
-    if command.args is None:
+    if command.args is None or "-" not in command.args:
         await message.answer(
             "Используй:\n"
-            "/add apple - яблоко"
+            "<code>/add apple - яблоко</code>",
+            parse_mode="HTML"
         )
         return
 
-    if "-" not in command.args:
+    english, russian = map(
+        str.strip,
+        command.args.split("-", 1)
+    )
+
+    if not english or not russian:
         await message.answer(
-            "Используй:\n"
-            "/add apple - яблоко"
+            "❌ Слово и перевод не должны быть пустыми."
         )
         return
-
-    english, russian = map(str.strip, command.args.split("-", 1))
 
     await add_word(
-        message.from_user.id,
+        user_id,
         english,
         russian
     )
