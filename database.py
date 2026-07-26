@@ -36,14 +36,18 @@ async def init_db():
 
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS users(
-                user_id BIGINT PRIMARY KEY
+                user_id BIGINT PRIMARY KEY,
                 is_premium BOOLEAN DEFAULT FALSE
             )
         """)
-        await conn.execute("""
-            ALTER TABLE users
-            ADD COLUMN IF NOT EXISTS is_premium BOOLEAN DEFAULT FALSE
-        """)
+
+        try:
+            await conn.execute("""
+                ALTER TABLE users
+                ADD COLUMN is_premium BOOLEAN DEFAULT FALSE
+            """)
+        except asyncpg.DuplicateColumnError:
+            pass
 
         print("✅ Таблицы PostgreSQL созданы/проверены")
 
