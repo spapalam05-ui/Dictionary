@@ -45,12 +45,6 @@ async def premium_menu(message: Message):
     keyboard = [
         [
             InlineKeyboardButton(
-                text="⭐ Избранное",
-                callback_data="open_favorites",
-            )
-        ],
-        [
-            InlineKeyboardButton(
                 text="📂 Категории",
                 callback_data="my_categories",
             )
@@ -59,12 +53,6 @@ async def premium_menu(message: Message):
             InlineKeyboardButton(
                 text="🔄 Направление карточек",
                 callback_data="card_direction",
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="⏰ Напоминания",
-                callback_data="premium_reminders",
             )
         ],
         [
