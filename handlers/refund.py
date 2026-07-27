@@ -4,14 +4,14 @@ from aiogram.types import Message
 
 from database import (
     get_payment_charge_id,
+    mark_payment_refunded,
     remove_premium,
 )
 
 router = Router()
 
 
-# Telegram ID твоего ОСНОВНОГО аккаунта
-ADMIN_ID = 1203468356
+from config import ADMIN_ID
 
 
 @router.message(Command("refund"))
@@ -69,6 +69,9 @@ async def refund_star_payment(
             )
             return
 
+        await remove_premium(buyer_user_id)
+
+        await mark_payment_refunded(payment_charge_id)
         await remove_premium(buyer_user_id)
 
         await message.answer(

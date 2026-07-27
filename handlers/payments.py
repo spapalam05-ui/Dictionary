@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
+from html import escape
 
-from aiogram import F, Router
+from aiogram import Bot, F, Router
 from aiogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
@@ -10,7 +11,12 @@ from aiogram.types import (
     PreCheckoutQuery,
 )
 
-from database import activate_premium, is_premium
+from config import ADMIN_ID
+from database import (
+    activate_premium,
+    is_premium,
+    save_premium_payment,
+)
 
 router = Router()
 
@@ -170,6 +176,7 @@ async def process_pre_checkout_query(
 @router.message(F.successful_payment)
 async def successful_premium_payment(
     message: Message,
+    bot: Bot,
 ) -> None:
 
     payment = message.successful_payment
@@ -211,6 +218,18 @@ async def successful_premium_payment(
         ),
     )
 
+    await save_premium_payment(
+        user_id=user_id,
+        username=message.from_user.username,
+        full_name=message.from_user.full_name,
+        amount=payment.total_amount,
+        currency=payment.currency,
+        telegram_payment_charge_id=(
+            payment.telegram_payment_charge_id
+        ),
+        premium_until=premium_until,
+    )
+
     premium_until_text = premium_until.strftime(
         "%d.%m.%Y"
     )
@@ -224,3 +243,40 @@ async def successful_premium_payment(
         "Спасибо за поддержку DictionaryBot! ⭐",
         parse_mode="HTML",
     )
+
+    # =====================================================
+    # УВЕДОМЛЕНИЕ АДМИНИСТРАТОРУ
+    # =====================================================
+
+    username_text = (
+        f"@{escape(message.from_user.username)}"
+        if message.from_user.username
+        else "Не указан"
+    )
+
+    full_name = escape(
+        message.from_user.full_name or "Без имени"
+    )
+
+    if ADMIN_ID:
+        try:
+            await bot.send_message(
+                chat_id=ADMIN_ID,
+                text=(
+                    "💰 <b>Новая покупка Premium!</b>\n\n"
+                    f"👤 Имя: <b>{full_name}</b>\n"
+                    f"🔗 Username: {username_text}\n"
+                    f"🆔 ID: <code>{user_id}</code>\n"
+                    f"⭐ Оплачено: "
+                    f"<b>{payment.total_amount} Stars</b>\n"
+                    f"📅 Premium до: "
+                    f"<b>{premium_until_text}</b>"
+                ),
+                parse_mode="HTML",
+            )
+
+        except Exception as error:
+            print(
+                "❌ Не удалось отправить уведомление "
+                f"администратору: {error}"
+            )

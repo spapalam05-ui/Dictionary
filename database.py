@@ -125,6 +125,32 @@ async def init_db():
             ON categories(user_id)
         """)
 
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS premium_payments(
+                id BIGSERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                username TEXT,
+                full_name TEXT,
+                amount INTEGER NOT NULL,
+                currency TEXT NOT NULL,
+                telegram_payment_charge_id TEXT NOT NULL UNIQUE,
+                premium_until TIMESTAMPTZ,
+                paid_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                is_refunded BOOLEAN NOT NULL DEFAULT FALSE,
+                refunded_at TIMESTAMPTZ
+            )
+        """)
+
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_premium_payments_user_id
+            ON premium_payments(user_id)
+        """)
+
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_premium_payments_paid_at
+            ON premium_payments(paid_at)
+        """)
+
         print("✅ Таблицы PostgreSQL созданы/проверены")
 
     finally:
@@ -1060,6 +1086,131 @@ async def get_payment_charge_id(
             """,
             user_id,
         )
+
+    finally:
+        await conn.close()
+
+async def save_premium_payment(
+    user_id: int,
+    username: str | None,
+    full_name: str | None,
+    amount: int,
+    currency: str,
+    telegram_payment_charge_id: str,
+    premium_until: datetime,
+) -> None:
+    conn = await get_connection()
+
+    try:
+        await conn.execute("""
+            INSERT INTO premium_payments(
+                user_id,
+                username,
+                full_name,
+                amount,
+                currency,
+                telegram_payment_charge_id,
+                premium_until
+            )
+            VALUES($1, $2, $3, $4, $5, $6, $7)
+
+            ON CONFLICT (telegram_payment_charge_id)
+            DO NOTHING
+        """,
+            user_id,
+            username,
+            full_name,
+            amount,
+            currency,
+            telegram_payment_charge_id,
+            premium_until,
+        )
+
+    finally:
+        await conn.close()
+
+
+async def get_premium_payments(
+    limit: int = 20,
+):
+    conn = await get_connection()
+
+    try:
+        rows = await conn.fetch("""
+            SELECT
+                id,
+                user_id,
+                username,
+                full_name,
+                amount,
+                currency,
+                telegram_payment_charge_id,
+                premium_until,
+                paid_at,
+                is_refunded,
+                refunded_at
+            FROM premium_payments
+            ORDER BY paid_at DESC
+            LIMIT $1
+        """, limit)
+
+        return rows
+
+    finally:
+        await conn.close()
+
+
+async def mark_payment_refunded(
+    telegram_payment_charge_id: str,
+) -> None:
+    conn = await get_connection()
+
+    try:
+        await conn.execute("""
+            UPDATE premium_payments
+            SET
+                is_refunded = TRUE,
+                refunded_at = NOW()
+            WHERE telegram_payment_charge_id = $1
+        """, telegram_payment_charge_id)
+
+    finally:
+        await conn.close()
+
+
+async def get_payments_statistics():
+    conn = await get_connection()
+
+    try:
+        row = await conn.fetchrow("""
+            SELECT
+                COUNT(*) AS payments_count,
+
+                COALESCE(
+                    SUM(amount)
+                    FILTER (WHERE is_refunded = FALSE),
+                    0
+                ) AS received_stars,
+
+                COUNT(*)
+                FILTER (WHERE is_refunded = TRUE)
+                AS refunds_count,
+
+                COALESCE(
+                    SUM(amount)
+                    FILTER (WHERE is_refunded = TRUE),
+                    0
+                ) AS refunded_stars
+
+            FROM premium_payments
+        """)
+
+        return {
+            "payments_count": row["payments_count"],
+            "received_stars": row["received_stars"],
+            "refunds_count": row["refunds_count"],
+            "refunded_stars": row["refunded_stars"],
+        }
 
     finally:
         await conn.close()
