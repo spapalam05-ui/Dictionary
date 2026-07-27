@@ -262,13 +262,67 @@ async def edit_word(callback: CallbackQuery):
 # ПОЛУЧЕНИЕ НОВОГО ТЕКСТА
 # =========================================================
 
-@router.message()
+def user_is_editing_word(message: Message) -> bool:
+    return (
+        message.from_user is not None
+        and message.from_user.id in editing_words
+    )
+
+
+@router.message(user_is_editing_word)
 async def process_edit(message: Message):
 
     user_id = message.from_user.id
 
-    if user_id not in editing_words:
+    if not message.text:
+        await message.answer(
+            "❌ Отправь новое слово текстом."
+        )
         return
+
+    if "-" not in message.text:
+        await message.answer(
+            "❌ Неправильный формат.\n\n"
+            "Напиши так:\n"
+            "apple - яблоко"
+        )
+        return
+
+    english, russian = map(
+        str.strip,
+        message.text.split("-", 1)
+    )
+
+    if not english or not russian:
+        await message.answer(
+            "❌ Оба слова должны быть заполнены.\n\n"
+            "Например:\n"
+            "apple - яблоко"
+        )
+        return
+
+    editing_data[user_id] = (
+        english,
+        russian,
+    )
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="💾 Сохранить",
+                    callback_data="save_words"
+                )
+            ]
+        ]
+    )
+
+    await message.answer(
+        f"🇬🇧 {english}\n"
+        f"🇷🇺 {russian}\n\n"
+        "Нажми «💾 Сохранить».",
+        reply_markup=keyboard
+    )
 
     if "-" not in message.text:
         await message.answer(
