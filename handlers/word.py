@@ -8,6 +8,7 @@ from aiogram.types import (
     Message,
 )
 
+from handlers.premium import get_user_card_direction
 from database import (
     add_forgotten_word,
     add_learned_word,
@@ -274,10 +275,30 @@ async def show_next_word(
 
     word_id, english, russian = words[index]
 
+    direction = get_user_card_direction(user_id)
+
+    if direction == "ru_en":
+        question = russian
+        answer = english
+
+    elif direction == "random":
+        import random
+
+        if random.choice([True, False]):
+            question = english
+            answer = russian
+        else:
+            question = russian
+            answer = english
+
+    else:
+        question = english
+        answer = russian
+
     last_words[user_id] = (
         word_id,
-        english,
-        russian,
+        question,
+        answer,
     )
 
     if repeat_mode:
@@ -289,10 +310,12 @@ async def show_next_word(
     else:
         title = "📖 Карточка"
 
+    flag = "🇬🇧" if direction == "en_ru" else "🇷🇺"
+
     await message.answer(
         f"{title}\n\n"
         f"<b>{index + 1}/{len(words)}</b>\n\n"
-        f"🇬🇧 <b>{english}</b>\n\n"
+        f"{flag} <b>{question}</b>\n\n"
         "🤔 Попробуй вспомнить перевод.",
         reply_markup=show_translation_keyboard(),
         parse_mode="HTML",
@@ -371,7 +394,7 @@ async def show_translation_callback(
         )
         return
 
-    word_id, english, russian = current_word
+    word_id, question, answer = current_word
 
     premium = await is_premium(user_id)
 
@@ -400,8 +423,8 @@ async def show_translation_callback(
         )
 
     await callback.message.edit_text(
-        f"🇬🇧 <b>{english}</b>\n\n"
-        f"🇷🇺 <b>{russian}</b>\n\n"
+        f"<b>{question}</b>\n\n"
+        f"➡️ <b>{answer}</b>\n\n"
         f"{additional_text}",
         reply_markup=keyboard,
         parse_mode="HTML",
