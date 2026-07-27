@@ -698,3 +698,45 @@ async def remove_premium(user_id: int):
 
     finally:
         await conn.close()
+
+async def toggle_favorite(user_id: int, word_id: int):
+    conn = await get_connection()
+
+    await conn.execute("""
+        UPDATE words
+        SET favorite = NOT favorite
+        WHERE id=$1 AND user_id=$2
+    """, word_id, user_id)
+
+    await conn.close()
+
+async def is_favorite(user_id: int, word_id: int):
+
+    conn = await get_connection()
+
+    result = await conn.fetchval("""
+        SELECT favorite
+        FROM words
+        WHERE id=$1
+        AND user_id=$2
+    """, word_id, user_id)
+
+    await conn.close()
+
+    return result
+
+async def get_favorite_words(user_id: int):
+
+    conn = await get_connection()
+
+    words = await conn.fetch("""
+        SELECT id, english, russian
+        FROM words
+        WHERE user_id=$1
+        AND favorite=TRUE
+        ORDER BY english
+    """, user_id)
+
+    await conn.close()
+
+    return words

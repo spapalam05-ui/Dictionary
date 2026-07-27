@@ -1,5 +1,5 @@
-from database import get_all_words, delete_word, update_word
 from aiogram import Router, F
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import (
     Message,
     CallbackQuery,
@@ -7,19 +7,31 @@ from aiogram.types import (
     InlineKeyboardButton,
 )
 
+from database import (
+    get_all_words,
+    delete_word,
+    update_word,
+)
 
 router = Router()
+
 editing_words = {}
 editing_data = {}
 
-# 📋 Мои слова
+
+# =========================================================
+# МОИ СЛОВА
+# =========================================================
+
 @router.message(F.text == "📋 Мои слова")
 async def my_words(message: Message):
 
     words = await get_all_words(message.from_user.id)
 
     if not words:
-        await message.answer("📚 У тебя пока нет слов.")
+        await message.answer(
+            "📚 У тебя пока нет слов."
+        )
         return
 
     keyboard = []
@@ -33,14 +45,15 @@ async def my_words(message: Message):
                 )
             ]
         )
+
     keyboard.append(
-    [
-        InlineKeyboardButton(
-            text="🔀 Перемешать слова",
-            callback_data="shuffle_words"
-        )
-    ]
-)
+        [
+            InlineKeyboardButton(
+                text="🔀 Перемешать слова",
+                callback_data="shuffle_words"
+            )
+        ]
+    )
 
     await message.answer(
         "📚 <b>Выбери слово:</b>",
@@ -51,7 +64,10 @@ async def my_words(message: Message):
     )
 
 
-# Открыть слово
+# =========================================================
+# ОТКРЫТЬ СЛОВО
+# =========================================================
+
 @router.callback_query(F.data.startswith("word_"))
 async def open_word(callback: CallbackQuery):
 
@@ -61,48 +77,55 @@ async def open_word(callback: CallbackQuery):
 
     for wid, english, russian in words:
 
-        if wid == word_id:
+        if wid != word_id:
+            continue
 
-            keyboard = InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [
-                        InlineKeyboardButton(
-                            text="✏️ Редактировать",
-                            callback_data=f"edit_{word_id}"
-                        )
-                    ],
-                    [
-                        InlineKeyboardButton(
-                            text="⬅️ Назад",
-                            callback_data="my_words"
-                        )
-                    ],
-                    [
-                        InlineKeyboardButton(
-                            text="🗑️ Удалить",
-                            callback_data=f"delete_{word_id}"
-                        )
-                    ]
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="✏️ Редактировать",
+                        callback_data=f"edit_{word_id}"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="⬅️ Назад",
+                        callback_data="my_words"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🗑️ Удалить",
+                        callback_data=f"delete_{word_id}"
+                    )
                 ]
-            )
+            ]
+        )
 
-
+        try:
             await callback.message.edit_text(
                 f"🇬🇧 <b>{english}</b>\n"
                 f"🇷🇺 {russian}",
                 reply_markup=keyboard,
                 parse_mode="HTML"
             )
+        except TelegramBadRequest as e:
+            if "message is not modified" not in str(e):
+                raise
 
-            break
+        break
 
     await callback.answer()
 
 
-# Подтверждение удаления
+# =========================================================
+# ПОДТВЕРЖДЕНИЕ УДАЛЕНИЯ
+# =========================================================
+
 @router.callback_query(
-    F.data.startswith("delete_") &
-    ~F.data.startswith("delete_yes_")
+    F.data.startswith("delete_")
+    & ~F.data.startswith("delete_yes_")
 )
 async def delete_confirm(callback: CallbackQuery):
 
@@ -123,23 +146,30 @@ async def delete_confirm(callback: CallbackQuery):
         ]
     )
 
-
-    await callback.message.edit_text(
-        "🗑️ <b>Удалить это слово?</b>",
-        reply_markup=keyboard,
-        parse_mode="HTML"
-    )
+    try:
+        await callback.message.edit_text(
+            "🗑️ <b>Удалить это слово?</b>",
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
+    except TelegramBadRequest as e:
+        if "message is not modified" not in str(e):
+            raise
 
     await callback.answer()
 
 
-# Удаление слова
+# =========================================================
+# УДАЛЕНИЕ СЛОВА
+# =========================================================
+
 @router.callback_query(F.data.startswith("delete_yes_"))
 async def delete_yes(callback: CallbackQuery):
 
     word_id = int(callback.data.split("_")[2])
 
     await delete_word(word_id)
+
     from handlers.word import study_sessions
 
     study_sessions.pop(callback.from_user.id, None)
@@ -148,17 +178,24 @@ async def delete_yes(callback: CallbackQuery):
 
     await back_to_words(callback)
 
+# =========================================================
+# ВОЗВРАТ К СПИСКУ СЛОВ
+# =========================================================
 
-# Возврат к списку слов
 @router.callback_query(F.data == "my_words")
 async def back_to_words(callback: CallbackQuery):
 
     words = await get_all_words(callback.from_user.id)
 
     if not words:
-        await callback.message.edit_text(
-            "📚 У тебя пока нет слов."
-        )
+        try:
+            await callback.message.edit_text(
+                "📚 У тебя пока нет слов."
+            )
+        except TelegramBadRequest as e:
+            if "message is not modified" not in str(e):
+                raise
+
         await callback.answer()
         return
 
@@ -179,20 +216,28 @@ async def back_to_words(callback: CallbackQuery):
             InlineKeyboardButton(
                 text="🔀 Перемешать слова",
                 callback_data="shuffle_words"
-                )
-            ]
-        )
-
-
-    await callback.message.edit_text(
-        "📚 <b>Выбери слово:</b>",
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=keyboard
-        ),
-        parse_mode="HTML"
+            )
+        ]
     )
 
+    try:
+        await callback.message.edit_text(
+            "📚 <b>Выбери слово:</b>",
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=keyboard
+            ),
+            parse_mode="HTML"
+        )
+    except TelegramBadRequest as e:
+        if "message is not modified" not in str(e):
+            raise
+
     await callback.answer()
+
+
+# =========================================================
+# РЕДАКТИРОВАНИЕ
+# =========================================================
 
 @router.callback_query(F.data.startswith("edit_"))
 async def edit_word(callback: CallbackQuery):
@@ -201,13 +246,21 @@ async def edit_word(callback: CallbackQuery):
 
     editing_words[callback.from_user.id] = word_id
 
-    await callback.message.edit_text(
-        "✏️ Отправь новое слово в формате:\n\n"
-        "apple - яблоко"
-    )
+    try:
+        await callback.message.edit_text(
+            "✏️ Отправь новое слово в формате:\n\n"
+            "apple - яблоко"
+        )
+    except TelegramBadRequest as e:
+        if "message is not modified" not in str(e):
+            raise
 
     await callback.answer()
 
+
+# =========================================================
+# ПОЛУЧЕНИЕ НОВОГО ТЕКСТА
+# =========================================================
 
 @router.message()
 async def process_edit(message: Message):
@@ -223,11 +276,14 @@ async def process_edit(message: Message):
         )
         return
 
-    english, russian = map(str.strip, message.text.split("-", 1))
+    english, russian = map(
+        str.strip,
+        message.text.split("-", 1)
+    )
 
     editing_data[user_id] = (
         english,
-        russian
+        russian,
     )
 
     keyboard = InlineKeyboardMarkup(
@@ -247,17 +303,23 @@ async def process_edit(message: Message):
         "Нажми «Сохранить».",
         reply_markup=keyboard
     )
-    return
+
+# =========================================================
+# СОХРАНЕНИЕ ИЗМЕНЕНИЙ
+# =========================================================
 
 @router.callback_query(F.data == "save_words")
 async def save_words(callback: CallbackQuery):
 
     user_id = callback.from_user.id
 
-    if user_id not in editing_words or user_id not in editing_data:
+    if (
+        user_id not in editing_words
+        or user_id not in editing_data
+    ):
         await callback.answer(
             "❌ Нет данных для сохранения",
-            show_alert=True
+            show_alert=True,
         )
         return
 
@@ -267,15 +329,20 @@ async def save_words(callback: CallbackQuery):
     await update_word(
         word_id,
         english,
-        russian
+        russian,
     )
 
     from handlers.word import study_sessions
+
+    # Сбрасываем текущую сессию,
+    # чтобы карточки обновились.
     study_sessions.pop(user_id, None)
 
     del editing_words[user_id]
     del editing_data[user_id]
 
-    await callback.answer("✅ Изменения сохранены!")
+    await callback.answer(
+        "✅ Изменения сохранены!"
+    )
 
     await back_to_words(callback)

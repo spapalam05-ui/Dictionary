@@ -30,6 +30,9 @@ router = Router()
 # =========================================================
 
 def answer_keyboard() -> InlineKeyboardMarkup:
+    """
+    Кнопки ответа для Premium-пользователей.
+    """
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -47,6 +50,9 @@ def answer_keyboard() -> InlineKeyboardMarkup:
 
 
 def next_word_keyboard() -> InlineKeyboardMarkup:
+    """
+    Кнопка перехода к следующему слову.
+    """
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -60,6 +66,9 @@ def next_word_keyboard() -> InlineKeyboardMarkup:
 
 
 def get_card_title(user_id: int) -> str:
+    """
+    Возвращает заголовок текущего урока.
+    """
     session = study_sessions.get(user_id)
 
     if session is None:
@@ -74,6 +83,45 @@ def get_card_title(user_id: int) -> str:
         return f"📁 {category_name}"
 
     return "📖 Карточка"
+
+
+async def safe_edit_text(
+    callback: CallbackQuery,
+    text: str,
+    reply_markup: InlineKeyboardMarkup | None = None,
+    parse_mode: str | None = None,
+) -> bool:
+    """
+    Безопасно изменяет сообщение.
+
+    Если Telegram сообщает, что сообщение не изменилось,
+    ошибка игнорируется.
+    """
+    try:
+        await callback.message.edit_text(
+            text,
+            reply_markup=reply_markup,
+            parse_mode=parse_mode,
+        )
+        return True
+
+    except TelegramBadRequest as error:
+        if "message is not modified" in str(error):
+            return False
+
+        raise
+
+
+async def safe_delete_message(
+    callback: CallbackQuery,
+) -> None:
+    """
+    Безопасно удаляет сообщение.
+    """
+    try:
+        await callback.message.delete()
+    except TelegramBadRequest:
+        pass
 
 
 # =========================================================
@@ -106,24 +154,29 @@ async def show_translation(
 
     if premium:
         keyboard = answer_keyboard()
-        premium_text = (
+
+        additional_text = (
             "\n\nВыбери, запомнил ли ты это слово:"
         )
     else:
         keyboard = next_word_keyboard()
-        premium_text = (
+
+        additional_text = (
             "\n\n➡️ Нажми «Следующее слово».\n\n"
             "⭐ В Premium доступны кнопки "
             "«Знаю» и «Не знаю», а также повторение "
             "забытых слов."
         )
 
-    await callback.message.edit_text(
-        f"{title}\n\n"
-        f"<b>{index + 1}/{len(words)}</b>\n\n"
-        f"🇬🇧 <b>{english}</b>\n"
-        f"🇷🇺 <b>{russian}</b>"
-        f"{premium_text}",
+    await safe_edit_text(
+        callback=callback,
+        text=(
+            f"{title}\n\n"
+            f"<b>{index + 1}/{len(words)}</b>\n\n"
+            f"🇬🇧 <b>{english}</b>\n"
+            f"🇷🇺 <b>{russian}</b>"
+            f"{additional_text}"
+        ),
         reply_markup=keyboard,
         parse_mode="HTML",
     )
@@ -170,21 +223,27 @@ async def dontknow(
     word = words[index]
     repeat_words = session.setdefault("repeat", [])
 
-    # Добавляем забытое слово в повторение.
+    # Не добавляем одно слово в повторение несколько раз.
     if word not in repeat_words:
         repeat_words.append(word)
 
     session["index"] = index + 1
+
     last_words.pop(user_id, None)
 
-    await callback.message.edit_text(
-        "❌ <b>Не страшно!</b>\n\n"
-        "Это слово попадёт в повторение.",
+    await safe_edit_text(
+        callback=callback,
+        text=(
+            "❌ <b>Не страшно!</b>\n\n"
+            "Это слово попадёт в повторение."
+        ),
         reply_markup=next_word_keyboard(),
         parse_mode="HTML",
     )
 
-    await callback.answer()
+    await callback.answer(
+        "🔁 Слово добавлено на повторение."
+    )
 
 
 # =========================================================
@@ -228,21 +287,26 @@ async def know(
     # Во время повторения правильный ответ
     # удаляет слово из списка забытых.
     if session.get("repeat_mode"):
-        repeat_words = session.setdefault("repeat", [])
+        repeat_words = session.setdefault(
+            "repeat",
+            [],
+        )
 
         if word in repeat_words:
             repeat_words.remove(word)
 
     session["index"] = index + 1
+
     last_words.pop(user_id, None)
 
-    await callback.message.edit_text(
-        "✅ <b>Отлично!</b>",
+    await safe_edit_text(
+        callback=callback,
+        text="✅ <b>Отлично!</b>",
         reply_markup=next_word_keyboard(),
         parse_mode="HTML",
     )
 
-    await callback.answer()
+    await callback.answer("✅ Правильно!")
 
 
 # =========================================================
@@ -262,12 +326,9 @@ async def next_word(
         )
         return
 
-    try:
-        await callback.message.delete()
-    except TelegramBadRequest:
-        pass
-
     await callback.answer()
+
+    await safe_delete_message(callback)
 
     await show_next_word(
         callback.message,
@@ -315,12 +376,14 @@ async def start_repeat(
     session["index"] = 0
     session["repeat_mode"] = True
 
-    try:
-        await callback.message.delete()
-    except TelegramBadRequest:
-        pass
-
     await callback.answer()
+
+    await safe_delete_message(callback)
+
+    await callback.message.answer(
+        "🔁 <b>Начинаем повторение забытых слов!</b>",
+        parse_mode="HTML",
+    )
 
     await show_next_word(
         callback.message,
@@ -329,7 +392,7 @@ async def start_repeat(
 
 
 # =========================================================
-# НАПОМИНАНИЯ
+# НАПОМИНАНИЯ — PREMIUM
 # =========================================================
 
 @router.callback_query(F.data.startswith("remind_"))
@@ -338,9 +401,6 @@ async def reminder_buttons(
 ) -> None:
     user_id = callback.from_user.id
 
-    # Дополнительная защита:
-    # даже если бесплатный пользователь каким-то образом
-    # нажмёт старую кнопку напоминания, функция не сработает.
     if not await is_premium(user_id):
         await callback.answer(
             "⭐ Напоминания доступны только в Premium.",
@@ -351,11 +411,14 @@ async def reminder_buttons(
     if callback.data == "remind_off":
         await delete_reminder(user_id)
 
-        await callback.message.edit_text(
-            "❌ Напоминание отключено."
+        await safe_edit_text(
+            callback=callback,
+            text="❌ Напоминание отключено.",
         )
 
-        await callback.answer()
+        await callback.answer(
+            "Напоминание отключено."
+        )
         return
 
     reminder_options = {
@@ -391,6 +454,7 @@ async def reminder_buttons(
         return
 
     delta, readable_time = option
+
     remind_datetime = datetime.now() + delta
 
     await set_reminder(
@@ -398,12 +462,17 @@ async def reminder_buttons(
         remind_datetime.isoformat(),
     )
 
-    await callback.message.edit_text(
-        "✅ Напоминание установлено.\n\n"
-        f"Я напомню тебе через {readable_time}."
+    await safe_edit_text(
+        callback=callback,
+        text=(
+            "✅ Напоминание установлено.\n\n"
+            f"Я напомню тебе через {readable_time}."
+        ),
     )
 
-    await callback.answer()
+    await callback.answer(
+        "✅ Напоминание установлено!"
+    )
 
 
 # =========================================================
@@ -418,8 +487,8 @@ async def shuffle_words_callback(
 
     await shuffle_words(user_id)
 
-    # Сбрасываем текущий урок, чтобы новый порядок
-    # загрузился при следующем запуске карточек.
+    # Сбрасываем текущий урок, чтобы карточки
+    # загрузились в новом порядке.
     study_sessions.pop(user_id, None)
     last_words.pop(user_id, None)
 
@@ -427,4 +496,11 @@ async def shuffle_words_callback(
         "✅ Слова перемешаны!"
     )
 
-    await back_to_words(callback)
+    try:
+        await back_to_words(callback)
+
+    except TelegramBadRequest as error:
+        # Если случайное перемешивание дало такой же порядок,
+        # Telegram сообщает, что сообщение не изменилось.
+        if "message is not modified" not in str(error):
+            raise
