@@ -1044,3 +1044,22 @@ async def activate_premium(
 
     finally:
         await conn.close()
+
+async def get_payment_charge_id(
+    user_id: int,
+) -> str | None:
+
+    conn = await get_connection()
+
+    try:
+        return await conn.fetchval(
+            """
+            SELECT telegram_payment_charge_id
+            FROM users
+            WHERE user_id = $1
+            """,
+            user_id,
+        )
+
+    finally:
+        await conn.close()

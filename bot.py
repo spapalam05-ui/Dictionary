@@ -21,6 +21,7 @@ from handlers.payments import router as payments_router
 from handlers.categories import router as categories_router
 from handlers.menu_buttons import router as menu_buttons_router
 from handlers.statistics import router as statistics_router
+from handlers.refund import router as refund_router
 
 
 bot = Bot(BOT_TOKEN)
@@ -41,6 +42,7 @@ dp.include_router(start_router)
 # Premium и оплата Telegram Stars
 dp.include_router(premium_router)
 dp.include_router(payments_router)
+dp.include_router(refund_router)
 
 # Другие разделы
 dp.include_router(help_router)
