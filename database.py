@@ -1,5 +1,6 @@
 import os
 import random
+from datetime import datetime, timezone
 from typing import Iterable
 
 import asyncpg
@@ -97,6 +98,16 @@ async def init_db():
         await conn.execute("""
             ALTER TABLE users
             ADD COLUMN IF NOT EXISTS is_premium BOOLEAN DEFAULT FALSE
+        """)
+
+        await conn.execute("""
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS premium_until TIMESTAMPTZ
+        """)
+
+        await conn.execute("""
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS telegram_payment_charge_id TEXT
         """)
 
         await conn.execute("""
@@ -683,17 +694,45 @@ async def get_users_count():
         await conn.close()
 
 
-async def is_premium(user_id: int):
+async def is_premium(user_id: int) -> bool:
     conn = await get_connection()
 
     try:
-        result = await conn.fetchval("""
-            SELECT is_premium
+        row = await conn.fetchrow("""
+            SELECT
+                is_premium,
+                premium_until
             FROM users
             WHERE user_id = $1
         """, user_id)
 
-        return bool(result)
+        if row is None:
+            return False
+
+        if not row["is_premium"]:
+            return False
+
+        premium_until = row["premium_until"]
+
+        # Если Premium выдан вручную без срока,
+        # считаем его бессрочным
+        if premium_until is None:
+            return True
+
+        current_time = datetime.now(timezone.utc)
+
+        if premium_until <= current_time:
+            await conn.execute("""
+                UPDATE users
+                SET
+                    is_premium = FALSE,
+                    premium_until = NULL
+                WHERE user_id = $1
+            """, user_id)
+
+            return False
+
+        return True
 
     finally:
         await conn.close()
@@ -704,10 +743,17 @@ async def give_premium(user_id: int):
 
     try:
         await conn.execute("""
-            INSERT INTO users(user_id, is_premium)
-            VALUES ($1, TRUE)
+            INSERT INTO users(
+                user_id,
+                is_premium,
+                premium_until
+            )
+            VALUES($1, TRUE, NULL)
+
             ON CONFLICT (user_id)
-            DO UPDATE SET is_premium = TRUE
+            DO UPDATE SET
+                is_premium = TRUE,
+                premium_until = NULL
         """, user_id)
 
     finally:
@@ -719,10 +765,19 @@ async def remove_premium(user_id: int):
 
     try:
         await conn.execute("""
-            INSERT INTO users(user_id, is_premium)
-            VALUES ($1, FALSE)
+            INSERT INTO users(
+                user_id,
+                is_premium,
+                premium_until,
+                telegram_payment_charge_id
+            )
+            VALUES($1, FALSE, NULL, NULL)
+
             ON CONFLICT (user_id)
-            DO UPDATE SET is_premium = FALSE
+            DO UPDATE SET
+                is_premium = FALSE,
+                premium_until = NULL,
+                telegram_payment_charge_id = NULL
         """, user_id)
 
     finally:
@@ -949,3 +1004,43 @@ async def get_user_stats(user_id: int):
     finally:
         await conn.close()
 
+async def activate_premium(
+    user_id: int,
+    premium_until: datetime,
+    telegram_payment_charge_id: str,
+) -> None:
+    conn = await get_connection()
+
+    try:
+        await conn.execute("""
+            INSERT INTO users(
+                user_id,
+                is_premium,
+                premium_until,
+                telegram_payment_charge_id
+            )
+            VALUES($1, TRUE, $2, $3)
+
+            ON CONFLICT (user_id)
+            DO UPDATE SET
+                is_premium = TRUE,
+
+                premium_until =
+                    CASE
+                        WHEN users.premium_until IS NOT NULL
+                         AND users.premium_until > NOW()
+                        THEN users.premium_until
+                             + INTERVAL '90 days'
+                        ELSE EXCLUDED.premium_until
+                    END,
+
+                telegram_payment_charge_id =
+                    EXCLUDED.telegram_payment_charge_id
+        """,
+            user_id,
+            premium_until,
+            telegram_payment_charge_id,
+        )
+
+    finally:
+        await conn.close()
