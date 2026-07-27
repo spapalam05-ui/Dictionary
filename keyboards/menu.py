@@ -8,8 +8,12 @@ menu = ReplyKeyboardMarkup(
             KeyboardButton(text="➕ Добавить"),
         ],
         [
-            KeyboardButton(text="❓ Помощь"),
+            KeyboardButton(text="⭐ Избранное"),
             KeyboardButton(text="📋 Мои слова"),
+        ],
+        [
+            KeyboardButton(text="❓ Помощь"),
+            KeyboardButton(text="📁 Папки"),
         ],
         [
             KeyboardButton(text="⏰ Напоминание"),
