@@ -502,7 +502,10 @@ async def next_word_callback(
     last_words.pop(user_id, None)
 
     await callback.answer()
-    await callback.message.delete()
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
 
     await show_next_word(
         callback.message,
@@ -545,7 +548,10 @@ async def know_word_callback(
     last_words.pop(user_id, None)
 
     await callback.answer("✅ Отлично!")
-    await callback.message.delete()
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
 
     await show_next_word(
         callback.message,
@@ -608,7 +614,10 @@ async def dont_know_word_callback(
         "🔁 Слово добавлено на повторение."
     )
 
-    await callback.message.delete()
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
 
     await show_next_word(
         callback.message,
@@ -659,7 +668,10 @@ async def start_repeat_callback(
     session["repeat_mode"] = True
 
     await callback.answer()
-    await callback.message.delete()
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
 
     await callback.message.answer(
         "🔁 <b>Начинаем повторение забытых слов!</b>",
