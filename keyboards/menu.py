@@ -13,13 +13,10 @@ menu = ReplyKeyboardMarkup(
         ],
         [
             KeyboardButton(text="📊 Статистика"),
-            KeyboardButton(text="📁 Папки"),
-        ],
-        [
             KeyboardButton(text="⏰ Напоминание"),
-            KeyboardButton(text="⭐ Premium"),
         ],
         [
+            KeyboardButton(text="⭐ Premium"),
             KeyboardButton(text="❓ Помощь"),
         ],
     ],
