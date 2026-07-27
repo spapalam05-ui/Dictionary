@@ -20,6 +20,7 @@ from handlers.remind import reminder_loop
 from handlers.premium import router as premium_router
 from handlers.categories import router as categories_router
 from handlers.menu_buttons import router as menu_buttons_router
+from handlers.statistics import router as statistics_router
 
 
 ROBOKASSA_PASSWORD_2 = os.getenv("ROBOKASSA_PASSWORD_2")
@@ -36,6 +37,7 @@ dp.include_router(premium_router)
 dp.include_router(help_router)
 dp.include_router(remind_router)
 dp.include_router(my_words_router)
+dp.include_router(statistics_router)
 
 # Сначала обычные кнопки главного меню
 dp.include_router(word_router)

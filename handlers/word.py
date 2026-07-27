@@ -9,12 +9,16 @@ from aiogram.types import (
 )
 
 from database import (
+    add_forgotten_word,
+    add_learned_word,
     get_favorite_words,
     get_words,
+    init_user_stats,
     is_favorite,
     is_premium,
     toggle_favorite,
 )
+
 router = Router()
 
 
@@ -490,6 +494,9 @@ async def next_word_callback(
 
     session["index"] = session.get("index", 0) + 1
 
+    await init_user_stats(user_id)
+    await add_learned_word(user_id)
+
     last_words.pop(user_id, None)
 
     await callback.answer()
@@ -586,6 +593,9 @@ async def dont_know_word_callback(
         forgotten_words.append(current_word)
 
     session["index"] = session.get("index", 0) + 1
+
+    await init_user_stats(user_id)
+    await add_forgotten_word(user_id)
 
     last_words.pop(user_id, None)
 

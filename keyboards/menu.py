@@ -12,12 +12,15 @@ menu = ReplyKeyboardMarkup(
             KeyboardButton(text="📋 Мои слова"),
         ],
         [
-            KeyboardButton(text="❓ Помощь"),
+            KeyboardButton(text="📊 Статистика"),
             KeyboardButton(text="📁 Папки"),
         ],
         [
             KeyboardButton(text="⏰ Напоминание"),
             KeyboardButton(text="⭐ Premium"),
+        ],
+        [
+            KeyboardButton(text="❓ Помощь"),
         ],
     ],
     resize_keyboard=True

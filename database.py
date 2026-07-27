@@ -28,6 +28,18 @@ async def init_db():
         """)
 
         await conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_stats(
+                user_id BIGINT PRIMARY KEY,
+                learned INTEGER NOT NULL DEFAULT 0,
+                forgotten INTEGER NOT NULL DEFAULT 0,
+                today_learned INTEGER NOT NULL DEFAULT 0,
+                streak INTEGER NOT NULL DEFAULT 0,
+                registered_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                last_activity DATE
+            )
+        """)
+
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS categories(
                 id BIGSERIAL PRIMARY KEY,
                 user_id BIGINT NOT NULL,
@@ -745,3 +757,111 @@ async def get_favorite_words(user_id: int):
     await conn.close()
 
     return words
+
+async def init_user_stats(user_id: int):
+    conn = await get_connection()
+
+    try:
+        await conn.execute("""
+            INSERT INTO user_stats(
+                user_id,
+                last_activity
+            )
+            VALUES(
+                $1,
+                CURRENT_DATE
+            )
+            ON CONFLICT (user_id)
+            DO NOTHING
+        """, user_id)
+
+    finally:
+        await conn.close()
+
+async def add_learned_word(user_id: int):
+    conn = await get_connection()
+
+    try:
+        await conn.execute("""
+            INSERT INTO user_stats(
+                user_id,
+                learned,
+                today_learned,
+                last_activity
+            )
+            VALUES(
+                $1,
+                1,
+                1,
+                CURRENT_DATE
+            )
+
+            ON CONFLICT (user_id)
+            DO UPDATE SET
+                learned = user_stats.learned + 1,
+                today_learned = user_stats.today_learned + 1,
+                last_activity = CURRENT_DATE
+        """, user_id)
+
+    finally:
+        await conn.close()
+
+async def add_forgotten_word(user_id: int):
+    conn = await get_connection()
+
+    try:
+        await conn.execute("""
+            INSERT INTO user_stats(
+                user_id,
+                forgotten,
+                last_activity
+            )
+            VALUES(
+                $1,
+                1,
+                CURRENT_DATE
+            )
+
+            ON CONFLICT (user_id)
+            DO UPDATE SET
+                forgotten = user_stats.forgotten + 1,
+                last_activity = CURRENT_DATE
+        """, user_id)
+
+    finally:
+        await conn.close()
+
+async def get_user_stats(user_id: int):
+    conn = await get_connection()
+
+    try:
+        row = await conn.fetchrow("""
+            SELECT
+                learned,
+                forgotten,
+                today_learned,
+                streak,
+                registered_at
+            FROM user_stats
+            WHERE user_id = $1
+        """, user_id)
+
+        if row is None:
+            return {
+                "learned": 0,
+                "forgotten": 0,
+                "today_learned": 0,
+                "streak": 0,
+                "registered_at": None,
+            }
+
+        return {
+            "learned": row["learned"],
+            "forgotten": row["forgotten"],
+            "today_learned": row["today_learned"],
+            "streak": row["streak"],
+            "registered_at": row["registered_at"],
+        }
+
+    finally:
+        await conn.close()
