@@ -813,7 +813,7 @@ async def add_learned_word(user_id: int):
                     CASE
                         -- Уже занимался сегодня
                         WHEN user_stats.last_activity = CURRENT_DATE
-                        THEN user_stats.streak
+                        THEN GREATEST(user_stats.streak, 1)
 
                         -- Занимался вчера
                         WHEN user_stats.last_activity = CURRENT_DATE - 1
