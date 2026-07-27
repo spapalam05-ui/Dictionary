@@ -10,9 +10,9 @@ from aiogram.types import (
 from database import (
     get_all_words,
     delete_word,
+    delete_all_words,
     update_word,
 )
-
 router = Router()
 
 editing_words = {}
@@ -54,7 +54,14 @@ async def my_words(message: Message):
             )
         ]
     )
-
+    keyboard.append(
+        [
+            InlineKeyboardButton(
+                text="🗑 Удалить все слова",
+                callback_data="delete_all_words"
+            )
+        ]
+    )
     await message.answer(
         "📚 <b>Выбери слово:</b>",
         reply_markup=InlineKeyboardMarkup(
@@ -216,6 +223,15 @@ async def back_to_words(callback: CallbackQuery):
             InlineKeyboardButton(
                 text="🔀 Перемешать слова",
                 callback_data="shuffle_words"
+            )
+        ]
+    )
+
+    keyboard.append(
+        [
+            InlineKeyboardButton(
+                text="🗑 Удалить все слова",
+                callback_data="delete_all_words"
             )
         ]
     )
@@ -400,3 +416,51 @@ async def save_words(callback: CallbackQuery):
     )
 
     await back_to_words(callback)
+
+
+@router.callback_query(F.data == "delete_all_words")
+async def delete_all_words_confirm(callback: CallbackQuery):
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="🗑 Да, удалить",
+                    callback_data="delete_all_words_yes",
+                ),
+                InlineKeyboardButton(
+                    text="❌ Отмена",
+                    callback_data="my_words",
+                ),
+            ]
+        ]
+    )
+
+    await callback.message.edit_text(
+        "⚠️ <b>Удалить все слова?</b>\n\n"
+        "Это действие нельзя отменить.",
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
+
+    await callback.answer()
+
+
+@router.callback_query(F.data == "delete_all_words_yes")
+async def delete_all_words_yes(callback: CallbackQuery):
+
+    user_id = callback.from_user.id
+
+    await delete_all_words(user_id)
+
+    from handlers.word import study_sessions, last_words
+
+    study_sessions.pop(user_id, None)
+    last_words.pop(user_id, None)
+
+    await callback.message.edit_text(
+        "✅ <b>Все слова успешно удалены.</b>",
+        parse_mode="HTML",
+    )
+
+    await callback.answer()

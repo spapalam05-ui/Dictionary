@@ -405,6 +405,18 @@ async def delete_word(word_id: int):
         await conn.close()
 
 
+async def delete_all_words(user_id: int):
+    conn = await get_connection()
+
+    try:
+        await conn.execute("""
+            DELETE FROM words
+            WHERE user_id = $1
+        """, user_id)
+
+    finally:
+        await conn.close()
+
 async def update_word(
     word_id: int,
     english: str,
@@ -936,3 +948,4 @@ async def get_user_stats(user_id: int):
 
     finally:
         await conn.close()
+
