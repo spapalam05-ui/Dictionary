@@ -9,12 +9,12 @@ from aiogram.types import (
 )
 
 from database import (
+    get_favorite_words,
     get_words,
     is_favorite,
     is_premium,
     toggle_favorite,
 )
-
 router = Router()
 
 
@@ -276,6 +276,8 @@ async def show_next_word(
 
     if repeat_mode:
         title = "🔁 Повторение"
+    elif session.get("favorite_mode"):
+        title = "⭐ Избранное"
     elif category_name:
         title = f"📁 {category_name}"
     else:
@@ -672,4 +674,67 @@ async def reset_words(
     await message.answer(
         "✅ Карточки обновлены.\n\n"
         "Нажми «📖 Карточка», чтобы начать заново."
+    )
+
+# =========================================================
+# КАРТОЧКИ ИЗ ИЗБРАННОГО
+# =========================================================
+
+@router.message(Command("favorites"))
+@router.message(F.text == "⭐ Избранное")
+async def favorite_words_lesson(
+    message: Message,
+    state: FSMContext,
+) -> None:
+
+    await state.clear()
+
+    user_id = message.from_user.id
+
+    if not await is_premium(user_id):
+        await message.answer(
+            "⭐ Избранное доступно только в Premium."
+        )
+        return
+
+    favorite_words = await get_favorite_words(user_id)
+
+    words = [
+        (
+            row["id"],
+            row["english"],
+            row["russian"],
+        )
+        for row in favorite_words
+    ]
+
+    if not words:
+        await message.answer(
+            "⭐ У тебя пока нет избранных слов.\n\n"
+            "Открой карточку, покажи перевод и нажми "
+            "«⭐ В избранное»."
+        )
+        return
+
+    study_sessions[user_id] = {
+        "words": words,
+        "repeat": [],
+        "index": 0,
+        "repeat_mode": False,
+        "favorite_mode": True,
+        "category_id": None,
+        "category_name": None,
+    }
+
+    last_words.pop(user_id, None)
+
+    await message.answer(
+        f"⭐ <b>Избранные слова</b>\n\n"
+        f"Всего слов: <b>{len(words)}</b>",
+        parse_mode="HTML",
+    )
+
+    await show_next_word(
+        message,
+        user_id,
     )
