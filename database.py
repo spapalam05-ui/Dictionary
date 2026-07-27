@@ -769,7 +769,7 @@ async def init_user_stats(user_id: int):
             )
             VALUES(
                 $1,
-                CURRENT_DATE
+                NULL
             )
             ON CONFLICT (user_id)
             DO NOTHING
@@ -787,10 +787,12 @@ async def add_learned_word(user_id: int):
                 user_id,
                 learned,
                 today_learned,
+                streak,
                 last_activity
             )
             VALUES(
                 $1,
+                1,
                 1,
                 1,
                 CURRENT_DATE
@@ -799,13 +801,33 @@ async def add_learned_word(user_id: int):
             ON CONFLICT (user_id)
             DO UPDATE SET
                 learned = user_stats.learned + 1,
-                today_learned = user_stats.today_learned + 1,
+
+                today_learned =
+                    CASE
+                        WHEN user_stats.last_activity = CURRENT_DATE
+                        THEN user_stats.today_learned + 1
+                        ELSE 1
+                    END,
+
+                streak =
+                    CASE
+                        -- Уже занимался сегодня
+                        WHEN user_stats.last_activity = CURRENT_DATE
+                        THEN user_stats.streak
+
+                        -- Занимался вчера
+                        WHEN user_stats.last_activity = CURRENT_DATE - 1
+                        THEN user_stats.streak + 1
+
+                        -- Первый день или был пропуск
+                        ELSE 1
+                    END,
+
                 last_activity = CURRENT_DATE
         """, user_id)
 
     finally:
         await conn.close()
-
 async def add_forgotten_word(user_id: int):
     conn = await get_connection()
 
@@ -814,10 +836,14 @@ async def add_forgotten_word(user_id: int):
             INSERT INTO user_stats(
                 user_id,
                 forgotten,
+                today_learned,
+                streak,
                 last_activity
             )
             VALUES(
                 $1,
+                1,
+                0,
                 1,
                 CURRENT_DATE
             )
@@ -825,6 +851,28 @@ async def add_forgotten_word(user_id: int):
             ON CONFLICT (user_id)
             DO UPDATE SET
                 forgotten = user_stats.forgotten + 1,
+
+                today_learned =
+                    CASE
+                        WHEN user_stats.last_activity = CURRENT_DATE
+                        THEN user_stats.today_learned
+                        ELSE 0
+                    END,
+
+                streak =
+                    CASE
+                        -- Уже занимался сегодня
+                        WHEN user_stats.last_activity = CURRENT_DATE
+                        THEN user_stats.streak
+
+                        -- Последнее занятие было вчера
+                        WHEN user_stats.last_activity = CURRENT_DATE - 1
+                        THEN user_stats.streak + 1
+
+                        -- Был пропущен день
+                        ELSE 1
+                    END,
+
                 last_activity = CURRENT_DATE
         """, user_id)
 
@@ -839,9 +887,30 @@ async def get_user_stats(user_id: int):
             SELECT
                 learned,
                 forgotten,
-                today_learned,
-                streak,
-                registered_at
+
+                CASE
+                    WHEN last_activity = CURRENT_DATE
+                    THEN today_learned
+                    ELSE 0
+                END AS today_learned,
+
+                CASE
+                    -- Сегодня уже занимался
+                    WHEN last_activity = CURRENT_DATE
+                    THEN streak
+
+                    -- Сегодня ещё не занимался,
+                    -- но занимался вчера
+                    WHEN last_activity = CURRENT_DATE - 1
+                    THEN streak
+
+                    -- Пропущен хотя бы один полный день
+                    ELSE 0
+                END AS streak,
+
+                registered_at,
+                last_activity
+
             FROM user_stats
             WHERE user_id = $1
         """, user_id)
@@ -853,6 +922,7 @@ async def get_user_stats(user_id: int):
                 "today_learned": 0,
                 "streak": 0,
                 "registered_at": None,
+                "last_activity": None,
             }
 
         return {
@@ -861,6 +931,7 @@ async def get_user_stats(user_id: int):
             "today_learned": row["today_learned"],
             "streak": row["streak"],
             "registered_at": row["registered_at"],
+            "last_activity": row["last_activity"],
         }
 
     finally:

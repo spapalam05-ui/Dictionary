@@ -537,6 +537,9 @@ async def know_word_callback(
 
     session["index"] = session.get("index", 0) + 1
 
+    await init_user_stats(user_id)
+    await add_learned_word(user_id)
+
     last_words.pop(user_id, None)
 
     await callback.answer("✅ Отлично!")
