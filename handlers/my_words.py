@@ -131,8 +131,7 @@ async def open_word(callback: CallbackQuery):
 # =========================================================
 
 @router.callback_query(
-    F.data.startswith("delete_")
-    & ~F.data.startswith("delete_yes_")
+    F.data.regexp(r"^delete_\d+$")
 )
 async def delete_confirm(callback: CallbackQuery):
 
@@ -165,21 +164,38 @@ async def delete_confirm(callback: CallbackQuery):
 
     await callback.answer()
 
+    try:
+        await callback.message.edit_text(
+            "🗑️ <b>Удалить это слово?</b>",
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
+    except TelegramBadRequest as e:
+        if "message is not modified" not in str(e):
+            raise
+
+    await callback.answer()
+
 
 # =========================================================
 # УДАЛЕНИЕ СЛОВА
 # =========================================================
 
-@router.callback_query(F.data.startswith("delete_yes_"))
+@router.callback_query(
+    F.data.regexp(r"^delete_yes_\d+$")
+)
 async def delete_yes(callback: CallbackQuery):
 
     word_id = int(callback.data.split("_")[2])
 
     await delete_word(word_id)
 
-    from handlers.word import study_sessions
+    from handlers.word import study_sessions, last_words
 
-    study_sessions.pop(callback.from_user.id, None)
+    user_id = callback.from_user.id
+
+    study_sessions.pop(user_id, None)
+    last_words.pop(user_id, None)
 
     await callback.answer("✅ Слово удалено")
 
