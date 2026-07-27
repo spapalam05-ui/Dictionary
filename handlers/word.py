@@ -143,16 +143,6 @@ async def show_next_word(
 
     session = study_sessions.get(user_id)
 
-    print("=" * 40)
-
-    print("SESSION:", session)
-
-    if session:
-        print("INDEX:", session.get("index"))
-        print("WORDS:", len(session.get("words", [])))
-        print("REPEAT:", len(session.get("repeat", [])))
-
-    print("=" * 40)
 
     if session is None:
         
