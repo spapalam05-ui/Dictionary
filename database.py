@@ -53,6 +53,11 @@ async def init_db():
         """)
 
         await conn.execute("""
+            ALTER TABLE words
+            ADD COLUMN IF NOT EXISTS favorite BOOLEAN DEFAULT FALSE
+        """)
+
+        await conn.execute("""
             DO $$
             BEGIN
                 IF NOT EXISTS (

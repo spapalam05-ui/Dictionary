@@ -8,7 +8,12 @@ from aiogram.types import (
     Message,
 )
 
-from database import get_words, is_premium
+from database import (
+    get_words,
+    is_favorite,
+    is_premium,
+    toggle_favorite,
+)
 
 router = Router()
 
@@ -37,7 +42,16 @@ def show_translation_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def premium_answer_keyboard() -> InlineKeyboardMarkup:
+def premium_answer_keyboard(
+    word_id: int,
+    favorite: bool,
+) -> InlineKeyboardMarkup:
+
+    if favorite:
+        favorite_text = "💛 Убрать из избранного"
+    else:
+        favorite_text = "⭐ В избранное"
+
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -49,7 +63,13 @@ def premium_answer_keyboard() -> InlineKeyboardMarkup:
                     text="❌ Не знаю",
                     callback_data="dont_know_word",
                 ),
-            ]
+            ],
+            [
+                InlineKeyboardButton(
+                    text=favorite_text,
+                    callback_data=f"favorite_{word_id}",
+                )
+            ],
         ]
     )
 
@@ -343,16 +363,25 @@ async def show_translation_callback(
         )
         return
 
-    _, english, russian = current_word
+    word_id, english, russian = current_word
 
     premium = await is_premium(user_id)
 
     if premium:
-        keyboard = premium_answer_keyboard()
+        favorite = await is_favorite(
+            user_id,
+            word_id,
+        )
+
+        keyboard = premium_answer_keyboard(
+            word_id,
+            bool(favorite),
+        )
 
         additional_text = (
             "Оцени, запомнил ли ты это слово:"
         )
+
     else:
         keyboard = free_answer_keyboard()
 
@@ -371,6 +400,71 @@ async def show_translation_callback(
     )
 
     await callback.answer()
+
+
+# =========================================================
+# ДОБАВИТЬ ИЛИ УБРАТЬ ИЗ ИЗБРАННОГО
+# =========================================================
+
+@router.callback_query(F.data.startswith("favorite_"))
+async def favorite_callback(
+    callback: CallbackQuery,
+) -> None:
+
+    user_id = callback.from_user.id
+
+    if not await is_premium(user_id):
+        await callback.answer(
+            "⭐ Избранное доступно только в Premium.",
+            show_alert=True,
+        )
+        return
+
+    try:
+        word_id = int(
+            callback.data.split("_", 1)[1]
+        )
+    except (ValueError, IndexError):
+        await callback.answer(
+            "❌ Ошибка слова.",
+            show_alert=True,
+        )
+        return
+
+    current_word = last_words.get(user_id)
+
+    if current_word is None or current_word[0] != word_id:
+        await callback.answer(
+            "Карточка уже устарела.",
+            show_alert=True,
+        )
+        return
+
+    await toggle_favorite(
+        user_id,
+        word_id,
+    )
+
+    favorite = await is_favorite(
+        user_id,
+        word_id,
+    )
+
+    await callback.message.edit_reply_markup(
+        reply_markup=premium_answer_keyboard(
+            word_id,
+            bool(favorite),
+        )
+    )
+
+    if favorite:
+        await callback.answer(
+            "⭐ Слово добавлено в избранное."
+        )
+    else:
+        await callback.answer(
+            "Слово удалено из избранного."
+        )
 
 
 # =========================================================
