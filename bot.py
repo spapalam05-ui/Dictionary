@@ -25,6 +25,9 @@ from handlers.refund import router as refund_router
 from handlers.payment_history import (
     router as payment_history_router,
 )
+from handlers.admin_premium import (
+    router as admin_premium_router,
+)
 
 
 bot = Bot(BOT_TOKEN)
@@ -41,6 +44,7 @@ dp.include_router(menu_buttons_router)
 # Основные команды
 dp.include_router(admin_router)
 dp.include_router(start_router)
+dp.include_router(admin_premium_router)
 
 # Premium и оплата Telegram Stars
 dp.include_router(premium_router)
